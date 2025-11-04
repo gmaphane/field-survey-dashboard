@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 43 15% 91%;
+    --foreground: 258 21% 18%;
+    --muted: 43 15% 96%;
+    --muted-foreground: 258 21% 35%;
+    --primary: 258 21% 18%;
+    --primary-foreground: 43 25% 96%;
+    --secondary: 160 19% 79%;
+    --secondary-foreground: 258 21% 18%;
+    --accent: 0 9% 44%;
+    --accent-foreground: 43 25% 96%;
+    --border: 43 15% 85%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 258 21% 10%;
+    --foreground: 43 15% 91%;
+    --muted: 258 21% 16%;
+    --muted-foreground: 43 25% 82%;
+    --primary: 160 19% 79%;
+    --primary-foreground: 258 21% 12%;
+    --secondary: 79 100% 50%;
+    --secondary-foreground: 258 21% 12%;
+    --accent: 0 9% 44%;
+    --accent-foreground: 43 25% 91%;
+    --border: 258 21% 18%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Leaflet CSS fixes */
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  z-index: 0;
+}
+
+.leaflet-popup-content-wrapper {
+  @apply rounded-lg shadow-lg;
+}
+
+.leaflet-popup-content {
+  @apply text-sm;
+}
