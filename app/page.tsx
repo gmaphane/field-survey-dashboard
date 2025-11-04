@@ -548,7 +548,7 @@ export default function Dashboard() {
     })();
 
     const latestSubmissionLabel = latestSubmission
-      ? latestSubmission.toLocaleString(undefined, {
+      ? (latestSubmission as Date).toLocaleString(undefined, {
           month: 'short',
           day: 'numeric',
           hour: '2-digit',
