@@ -514,7 +514,7 @@ export default function Dashboard() {
     const averageFieldCompletion =
       fillRates.length > 0 ? Math.round(fillRates.reduce((a, b) => a + b, 0) / fillRates.length) : null;
 
-    const daysSinceLastSubmission = latestSubmission
+    const daysSinceLastSubmission = latestSubmission instanceof Date
       ? Math.max(
           0,
           Math.floor((Date.now() - latestSubmission.getTime()) / (1000 * 60 * 60 * 24))
