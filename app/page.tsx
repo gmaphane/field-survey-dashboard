@@ -518,10 +518,13 @@ export default function Dashboard() {
       fillRates.length > 0 ? Math.round(fillRates.reduce((a, b) => a + b, 0) / fillRates.length) : null;
 
     const daysSinceLastSubmission = latestSubmission
-      ? Math.max(
-          0,
-          Math.floor((Date.now() - (latestSubmission as Date).getTime()) / (1000 * 60 * 60 * 24))
-        )
+      ? (() => {
+          const now = new Date();
+          const submission = latestSubmission as Date;
+          const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const submissionDate = new Date(submission.getFullYear(), submission.getMonth(), submission.getDate());
+          return Math.floor((nowDate.getTime() - submissionDate.getTime()) / (1000 * 60 * 60 * 24));
+        })()
       : null;
 
     const formatStatus = (value: number | null) => {
