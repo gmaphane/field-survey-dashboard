@@ -627,13 +627,14 @@ export default function Dashboard() {
           });
         });
 
-        if (nearestVillage) {
-          setSelectedVillage({ district: nearestVillage.district, village: nearestVillage.village });
+        if (nearestVillage !== null) {
+          const nearest = nearestVillage as { district: string; village: string; distance: number; completion: number };
+          setSelectedVillage({ district: nearest.district, village: nearest.village });
           setMapKey(prev => prev + 1); // Force map to recenter
 
           alert(
-            `Nearest incomplete village: ${nearestVillage.village}, ${nearestVillage.district}\n` +
-            `Current completion: ${nearestVillage.completion}%\n` +
+            `Nearest incomplete village: ${nearest.village}, ${nearest.district}\n` +
+            `Current completion: ${nearest.completion}%\n` +
             `Distance: ~${(minDistance * 111).toFixed(1)} km`
           );
         } else {
