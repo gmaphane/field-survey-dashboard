@@ -194,6 +194,9 @@ export default function Dashboard() {
   const [mapKey, setMapKey] = useState(0);
   const [showGaps, setShowGaps] = useState(false);
   const [showBuildings, setShowBuildings] = useState(false);
+  const [userLocation, setUserLocation] = useState<{lat: number, lon: number} | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [showWhereNext, setShowWhereNext] = useState(false);
 
   // Auto-load CSV and connect on mount
   useEffect(() => {
@@ -583,6 +586,73 @@ export default function Dashboard() {
     };
   }, [selectedVillage, selectedVillageData, surveyData]);
 
+  // Geolocation handler
+  const handleWhereNext = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser');
+      return;
+    }
+
+    setIsLocating(true);
+    setShowWhereNext(true);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const userLat = position.coords.latitude;
+        const userLon = position.coords.longitude;
+        setUserLocation({ lat: userLat, lon: userLon });
+        setIsLocating(false);
+
+        // Find the nearest village with incomplete sampling
+        let nearestVillage: { district: string; village: string; distance: number; completion: number } | null = null;
+        let minDistance = Infinity;
+
+        Object.entries(villageTargets).forEach(([district, villages]) => {
+          Object.entries(villages).forEach(([villageName, data]) => {
+            const percentage = data.expected > 0 ? (data.actual / data.expected) * 100 : 0;
+
+            // Only consider villages that aren't complete
+            if (percentage < 100) {
+              data.households.forEach((household) => {
+                const distance = Math.sqrt(
+                  Math.pow(household.lat - userLat, 2) + Math.pow(household.lon - userLon, 2)
+                );
+
+                if (distance < minDistance) {
+                  minDistance = distance;
+                  nearestVillage = { district, village: villageName, distance, completion: Math.round(percentage) };
+                }
+              });
+            }
+          });
+        });
+
+        if (nearestVillage) {
+          setSelectedVillage({ district: nearestVillage.district, village: nearestVillage.village });
+          setMapKey(prev => prev + 1); // Force map to recenter
+
+          alert(
+            `Nearest incomplete village: ${nearestVillage.village}, ${nearestVillage.district}\n` +
+            `Current completion: ${nearestVillage.completion}%\n` +
+            `Distance: ~${(minDistance * 111).toFixed(1)} km`
+          );
+        } else {
+          alert('All villages are fully sampled! Great work!');
+        }
+      },
+      (error) => {
+        setIsLocating(false);
+        console.error('Geolocation error:', error);
+        alert(`Unable to get your location: ${error.message}`);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Simple Header */}
@@ -618,6 +688,15 @@ export default function Dashboard() {
                 <span className="text-sm text-foreground/80">Buildings</span>
               </label>
             </div>
+
+            <button
+              onClick={handleWhereNext}
+              disabled={isLocating}
+              className="flex items-center gap-2 px-4 py-2 bg-brand-slate text-white rounded-full shadow-[0_12px_24px_-18px_rgba(43,37,57,0.4)] hover:shadow-[0_16px_32px_-18px_rgba(43,37,57,0.45)] hover:scale-[1.01] transition-all disabled:opacity-50"
+            >
+              <Navigation className={`w-4 h-4 ${isLocating ? 'animate-pulse' : ''}`} />
+              {isLocating ? 'Locating...' : 'Where Next?'}
+            </button>
 
             <button
               onClick={fetchSurveyData}
@@ -751,7 +830,9 @@ export default function Dashboard() {
                   <div className="text-2xl font-bold text-foreground">
                     {selectedVillageQuality.daysSinceLastSubmission === null
                       ? '—'
-                      : `${selectedVillageQuality.daysSinceLastSubmission}d`}
+                      : selectedVillageQuality.daysSinceLastSubmission === 0
+                        ? 'Today'
+                        : `${selectedVillageQuality.daysSinceLastSubmission}d`}
                   </div>
                   <p className="mt-1.5 text-[11px] text-foreground/70">
                     {selectedVillageQuality.daysSinceLastSubmission === null
@@ -775,6 +856,7 @@ export default function Dashboard() {
               selectedVillage={selectedVillage}
               showGaps={showGaps}
               showBuildings={showBuildings}
+              userLocation={userLocation}
             />
           </div>
         </div>

@@ -306,6 +306,7 @@ interface MapProps {
   selectedVillage?: {district: string, village: string} | null;
   showGaps?: boolean;
   showBuildings?: boolean;
+  userLocation?: {lat: number, lon: number} | null;
 }
 
 function MapUpdater({ villageTargets, selectedVillage }: { villageTargets: VillageTargets, selectedVillage?: {district: string, village: string} | null }) {
@@ -352,7 +353,7 @@ function MapUpdater({ villageTargets, selectedVillage }: { villageTargets: Villa
   return null;
 }
 
-export default function Map({ villageTargets, selectedVillage, showGaps = true, showBuildings = true }: MapProps) {
+export default function Map({ villageTargets, selectedVillage, showGaps = true, showBuildings = true, userLocation = null }: MapProps) {
   const getMarkerColor = (percentage: number) => {
     if (percentage >= 100) return '#2B2539'; // slate - completed villages
     if (percentage >= 80) return '#F59E0B'; // bright orange - high progress but incomplete
@@ -629,6 +630,31 @@ export default function Map({ villageTargets, selectedVillage, showGaps = true, 
             </Popup>
           </CircleMarker>
         ))}
+
+        {/* User Location Marker */}
+        {userLocation && (
+          <CircleMarker
+            center={[userLocation.lat, userLocation.lon]}
+            radius={12}
+            fillColor="#3B82F6"
+            color="#fff"
+            weight={3}
+            opacity={1}
+            fillOpacity={0.7}
+          >
+            <Popup>
+              <div className="text-sm">
+                <div className="font-semibold text-base text-foreground mb-1">
+                  📍 Your Location
+                </div>
+                <div className="text-foreground/70 text-xs">
+                  Lat: {userLocation.lat.toFixed(5)}<br />
+                  Lon: {userLocation.lon.toFixed(5)}
+                </div>
+              </div>
+            </Popup>
+          </CircleMarker>
+        )}
       </MapContainer>
 
       {selectedVillage && isLoadingBuildings && (
