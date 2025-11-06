@@ -41,14 +41,14 @@ export function extractEnumeratorInfo(submission: any): { id: string; name: stri
     return /^E\d+$/i.test(str); // Matches E1, E2, E10, etc. (case insensitive)
   };
 
-  // List of possible field names to check
+  // List of possible field names to check (prioritize the actual KoBoToolbox fields)
   const possibleFields = [
-    'Enumerator Code',
-    'enumerator_code',
+    'grp_general/enumerator_id',        // The actual field in KoBoToolbox
     'grp_general/Enumerator Code',
     'grp_general/enumerator_code',
-    'grp_general_enumerator_code',
-    'grp_general_Enumerator_Code',
+    'grp_general_enumerator_id',
+    'Enumerator Code',
+    'enumerator_code',
     'enumeratorCode',
     'enumerator_id',
     '_enumerator_id',
@@ -58,20 +58,12 @@ export function extractEnumeratorInfo(submission: any): { id: string; name: stri
     'interviewerId',
   ];
 
-  // Debug: Log first submission to see available fields (only once)
-  if (typeof window !== 'undefined' && !(window as any).__enumDebugLogged) {
-    console.log('=== DEBUG: Sample submission fields ===');
-    console.log('Available keys:', Object.keys(submission).filter(k => k.toLowerCase().includes('enum') || k.toLowerCase().includes('interview')));
-    (window as any).__enumDebugLogged = true;
-  }
-
   // Find the first field that contains a valid E-code
   let enumeratorCode = null;
   for (const fieldName of possibleFields) {
     const value = submission[fieldName];
     if (isValidEnumeratorCode(value)) {
       enumeratorCode = String(value).trim().toUpperCase(); // Normalize to uppercase
-      console.log(`Found valid E-code: ${enumeratorCode} in field: ${fieldName}`);
       break;
     }
   }
@@ -81,13 +73,13 @@ export function extractEnumeratorInfo(submission: any): { id: string; name: stri
     return null;
   }
 
-  // Try to find enumerator name (optional)
+  // Try to find enumerator name (optional) - prioritize the actual KoBoToolbox field
   const enumeratorName =
+    submission['grp_general/enumerator_name'] ||  // The actual field in KoBoToolbox
+    submission['grp_general/Enumerator Name'] ||
     submission['Enumerator Name'] ||
     submission['enumerator_name'] ||
     submission.enumerator_name ||
-    submission['grp_general/Enumerator Name'] ||
-    submission['grp_general/enumerator_name'] ||
     submission.enumeratorName ||
     submission._enumerator_name ||
     submission.enum_name ||
