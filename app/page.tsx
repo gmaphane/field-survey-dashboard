@@ -977,6 +977,7 @@ export default function Dashboard() {
               userLocation={userLocation}
               selectedEnumerator={selectedEnumerator}
               allEnumerators={allEnumerators}
+              villageEnumerators={villageEnumerators}
             />
           </div>
         </div>

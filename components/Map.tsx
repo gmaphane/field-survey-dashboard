@@ -309,6 +309,7 @@ interface MapProps {
   userLocation?: {lat: number, lon: number} | null;
   selectedEnumerator?: string | null;
   allEnumerators?: globalThis.Map<string, EnumeratorInfo>;
+  villageEnumerators?: EnumeratorInfo[];
 }
 
 function MapUpdater({ villageTargets, selectedVillage }: { villageTargets: VillageTargets, selectedVillage?: {district: string, village: string} | null }) {
@@ -355,7 +356,7 @@ function MapUpdater({ villageTargets, selectedVillage }: { villageTargets: Villa
   return null;
 }
 
-export default function Map({ villageTargets, selectedVillage, showGaps = true, showBuildings = true, userLocation = null, selectedEnumerator = null, allEnumerators }: MapProps) {
+export default function Map({ villageTargets, selectedVillage, showGaps = true, showBuildings = true, userLocation = null, selectedEnumerator = null, allEnumerators, villageEnumerators = [] }: MapProps) {
   const getMarkerColor = (percentage: number) => {
     if (percentage >= 100) return '#2B2539'; // slate - completed villages
     if (percentage >= 80) return '#F59E0B'; // bright orange - high progress but incomplete
@@ -708,14 +709,14 @@ export default function Map({ villageTargets, selectedVillage, showGaps = true, 
         </div>
       )}
 
-      {/* Enumerator Legend - only show when village is selected and enumerators exist */}
-      {selectedVillage && allEnumerators && allEnumerators.size > 0 && (
+      {/* Enumerator Legend - only show village-specific enumerators */}
+      {selectedVillage && villageEnumerators && villageEnumerators.length > 0 && (
         <div className="absolute right-4 top-4 rounded-lg bg-white/95 px-4 py-3 shadow-lg backdrop-blur max-w-xs">
           <div className="text-xs font-semibold text-foreground/80 mb-2 uppercase tracking-wide">
-            Enumerators
+            Enumerators in {selectedVillage.village}
           </div>
           <div className="space-y-1.5 max-h-64 overflow-y-auto">
-            {Array.from(allEnumerators.values())
+            {villageEnumerators
               .sort((a, b) => a.name.localeCompare(b.name))
               .map((enumerator) => (
                 <div
@@ -726,7 +727,7 @@ export default function Map({ villageTargets, selectedVillage, showGaps = true, 
                     className="w-3 h-3 rounded-full flex-shrink-0"
                     style={{ backgroundColor: enumerator.color }}
                   />
-                  <span className="text-foreground/90 truncate">
+                  <span className="text-foreground/90 truncate font-medium">
                     {enumerator.name}
                   </span>
                   <span className="text-foreground/60 text-[10px] ml-auto">

@@ -89,6 +89,6 @@ export function extractEnumeratorInfo(submission: any): { id: string; name: stri
 
   return {
     id: enumeratorCode,
-    name: enumeratorName ? String(enumeratorName) : enumeratorCode,
+    name: enumeratorCode, // Use the E-code (E1, E2, etc.) as the display name
   };
 }
