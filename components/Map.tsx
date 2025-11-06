@@ -428,20 +428,6 @@ function MapResizeController({ isFullscreen }: { isFullscreen: boolean }) {
   return null;
 }
 
-function MapResizeController({ isFullscreen }: { isFullscreen: boolean }) {
-  const map = useMap();
-
-  useEffect(() => {
-    if (!map) return;
-    const handle = window.setTimeout(() => {
-      map.invalidateSize();
-    }, 60);
-    return () => window.clearTimeout(handle);
-  }, [isFullscreen, map]);
-
-  return null;
-}
-
 export default function Map({
   villageTargets,
   selectedVillage,
