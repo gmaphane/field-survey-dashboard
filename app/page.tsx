@@ -12,6 +12,8 @@ import {
   Navigation,
   Clock,
   ListChecks,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import Papa from 'papaparse';
 import type { VillageTargets, KoBoSubmission, EnumeratorInfo } from '@/types';
@@ -259,6 +261,7 @@ export default function Dashboard() {
   const [showWhereNext, setShowWhereNext] = useState(false);
   const [selectedEnumerator, setSelectedEnumerator] = useState<string | null>(null);
   const [allEnumerators, setAllEnumerators] = useState<globalThis.Map<string, EnumeratorInfo>>(new globalThis.Map());
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Auto-load CSV and connect on mount
   useEffect(() => {
@@ -612,6 +615,14 @@ export default function Dashboard() {
     );
   }, [selectedVillage, surveyData, allEnumerators]);
 
+  useEffect(() => {
+    if (!selectedEnumerator) return;
+    const matching = villageEnumerators.find((enumerator) => enumerator.id === selectedEnumerator);
+    if (!matching || matching.gpsSubmissionCount === 0) {
+      setSelectedEnumerator(null);
+    }
+  }, [selectedEnumerator, villageEnumerators]);
+
   const selectedVillageQuality = useMemo(() => {
     if (!selectedVillage || !selectedVillageData) return null;
 
@@ -792,68 +803,205 @@ export default function Dashboard() {
     );
   };
 
+  const mainLayoutClasses = isFullscreen
+    ? 'flex flex-col h-screen gap-4 lg:gap-6'
+    : 'flex flex-col lg:flex-row min-h-[calc(100vh-80px)] lg:h-[calc(100vh-80px)] gap-4 lg:gap-6';
+
+  const mapSectionClasses = isFullscreen
+    ? 'w-full p-0 flex-1'
+    : 'w-full lg:w-[70%] px-4 pt-4 pb-6 sm:p-6 flex-1';
+
+  const mapInnerBaseClasses = 'flex flex-col space-y-3 h-full relative min-h-[360px] sm:min-h-[420px]';
+
+  const sidePanelWrapperClasses = 'w-full lg:w-[30%] px-4 pb-6 lg:p-6 lg:pl-0 order-last lg:order-none';
+
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Simple Header */}
-      <header className="bg-brand-oatmeal border-b border-brand-umber/30 shadow-[0_12px_24px_-16px_rgba(43,37,57,0.25)] backdrop-blur-sm">
-        <div className="px-6 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-foreground tracking-wide uppercase">Socio-Economic Baseline Survey 2025</h1>
-            <p className="text-sm text-foreground/70">
-              {stats.totalSubmissions} / {stats.totalExpected} samples collected ({stats.overallProgress}%)
-            </p>
-          </div>
-
-          <div className="flex items-center gap-4">
-            {/* Toggle switches */}
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showGaps}
-                  onChange={(e) => setShowGaps(e.target.checked)}
-                  className="w-4 h-4 cursor-pointer"
-                />
-                <span className="text-sm text-foreground/80">Spatial Gaps</span>
-              </label>
-
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showBuildings}
-                  onChange={(e) => setShowBuildings(e.target.checked)}
-                  className="w-4 h-4 cursor-pointer"
-                />
-                <span className="text-sm text-foreground/80">Buildings</span>
-              </label>
+      {/* Simple Header - Hidden in fullscreen */}
+      {!isFullscreen && (
+        <header className="bg-brand-oatmeal border-b border-brand-umber/30 shadow-[0_12px_24px_-16px_rgba(43,37,57,0.25)] backdrop-blur-sm">
+          <div className="px-4 sm:px-6 py-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <h1 className="text-xl font-semibold text-foreground tracking-wide uppercase">Socio-Economic Baseline Survey 2025</h1>
+              <p className="text-sm text-foreground/70">
+                {stats.totalSubmissions} / {stats.totalExpected} samples collected ({stats.overallProgress}%)
+              </p>
             </div>
 
-            <button
-              onClick={handleWhereNext}
-              disabled={isLocating}
-              className="flex items-center gap-2 px-4 py-2 bg-brand-slate text-white rounded-full shadow-[0_12px_24px_-18px_rgba(43,37,57,0.4)] hover:shadow-[0_16px_32px_-18px_rgba(43,37,57,0.45)] hover:scale-[1.01] transition-all disabled:opacity-50"
-            >
-              <Navigation className={`w-4 h-4 ${isLocating ? 'animate-pulse' : ''}`} />
-              {isLocating ? 'Locating...' : 'Where Next?'}
-            </button>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+              {/* Toggle switches */}
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showGaps}
+                    onChange={(e) => setShowGaps(e.target.checked)}
+                    className="w-4 h-4 cursor-pointer"
+                  />
+                  <span className="text-sm text-foreground/80">Spatial Gaps</span>
+                </label>
 
-            <button
-              onClick={fetchSurveyData}
-              disabled={isLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-full shadow-[0_12px_24px_-18px_rgba(43,37,57,0.4)] hover:shadow-[0_16px_32px_-18px_rgba(43,37,57,0.45)] hover:scale-[1.01] transition-all disabled:opacity-50"
-            >
-              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showBuildings}
+                    onChange={(e) => setShowBuildings(e.target.checked)}
+                    className="w-4 h-4 cursor-pointer"
+                  />
+                  <span className="text-sm text-foreground/80">Buildings</span>
+                </label>
+              </div>
+
+              <button
+                onClick={handleWhereNext}
+                disabled={isLocating}
+                className="flex items-center gap-2 px-4 py-2 bg-brand-slate text-white rounded-full shadow-[0_12px_24px_-18px_rgba(43,37,57,0.4)] hover:shadow-[0_16px_32px_-18px_rgba(43,37,57,0.45)] hover:scale-[1.01] transition-all disabled:opacity-50"
+              >
+                <Navigation className={`w-4 h-4 ${isLocating ? 'animate-pulse' : ''}`} />
+                {isLocating ? 'Locating...' : 'Where Next?'}
+              </button>
+
+              <button
+                onClick={fetchSurveyData}
+                disabled={isLoading}
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-full shadow-[0_12px_24px_-18px_rgba(43,37,57,0.4)] hover:shadow-[0_16px_32px_-18px_rgba(43,37,57,0.45)] hover:scale-[1.01] transition-all disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       {/* Main Content: Map + Village Cards */}
-      <div className="flex h-[calc(100vh-80px)]">
-        {/* Map - 70% width */}
-        <div className="w-[70%] p-6 flex flex-col space-y-3 h-full">
-          {selectedVillageQuality && (
+      <div className={mainLayoutClasses}>
+        {/* Map Section */}
+        <div className={`${mapSectionClasses} ${mapInnerBaseClasses}`}>
+          {/* Fullscreen Overlay Filters */}
+          {isFullscreen && (
+            <div className="absolute top-4 left-4 right-4 z-[1000] pointer-events-none">
+              <div className="flex flex-col gap-3 pointer-events-auto">
+                {/* Village Selection Dropdown */}
+                {activeVillages.length > 0 && (
+                  <div className="rounded-xl border border-brand-umber/25 bg-white/95 p-3 shadow-lg backdrop-blur">
+                    <select
+                      value={selectedVillage ? `${selectedVillage.district}|${selectedVillage.village}` : ''}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          const [district, village] = e.target.value.split('|');
+                          handleVillageClick(district, village);
+                        }
+                      }}
+                      className="w-full px-3 py-2 bg-white border border-brand-umber/30 rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                    >
+                      <option value="">Select a village...</option>
+                      {activeVillages.map(({ district, districtDisplay, village, villageDisplay }) => (
+                        <option key={`${district}-${village}`} value={`${district}|${village}`}>
+                          {villageDisplay} - {districtDisplay}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Enumerator Filter */}
+                {selectedVillage && villageEnumerators.length > 0 && (
+                  <div className="rounded-xl border border-brand-umber/25 bg-white/95 p-3 shadow-lg backdrop-blur">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-semibold text-foreground/70 whitespace-nowrap">Enumerator:</span>
+                      <select
+                        value={selectedEnumerator || ''}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (!value) {
+                            setSelectedEnumerator(null);
+                            return;
+                          }
+                          const matching = villageEnumerators.find((item) => item.id === value);
+                          if (matching && matching.gpsSubmissionCount === 0) {
+                            return;
+                          }
+                          setSelectedEnumerator(value);
+                        }}
+                        className="flex-1 px-3 py-2 bg-white border border-brand-umber/30 rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                      >
+                        <option value="">All Enumerators</option>
+                        {villageEnumerators.map((enumerator) => (
+                          <option
+                            key={enumerator.id}
+                            value={enumerator.id}
+                            disabled={enumerator.gpsSubmissionCount === 0}
+                          >
+                            {enumerator.name} ({formatEnumeratorSummary(enumerator)})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {villageEnumerators.map((enumerator) => {
+                        const canSelect = enumerator.gpsSubmissionCount > 0;
+                        const isActive = selectedEnumerator === enumerator.id;
+                        const buttonClasses = canSelect
+                          ? isActive
+                            ? 'bg-brand-slate text-white shadow-md'
+                            : 'bg-brand-oatmeal/80 text-foreground/80 hover:bg-brand-oatmeal border border-brand-umber/20'
+                          : 'bg-slate-200 text-foreground/50 border border-dashed border-brand-umber/30 cursor-not-allowed opacity-80';
+
+                        const handleClick = () => {
+                          if (!canSelect) return;
+                          setSelectedEnumerator(isActive ? null : enumerator.id);
+                        };
+
+                        return (
+                          <button
+                            key={enumerator.id}
+                            type="button"
+                            disabled={!canSelect}
+                            aria-disabled={!canSelect}
+                            onClick={handleClick}
+                            className={`flex items-center gap-2 px-2 py-1 rounded-full text-xs font-medium transition-all ${buttonClasses}`}
+                          >
+                            {canSelect && (
+                              <span
+                                className="w-2.5 h-2.5 rounded-full"
+                                style={{ backgroundColor: enumerator.color }}
+                              />
+                            )}
+                            <div className="flex flex-col items-start text-left">
+                              <span className="text-xs font-semibold leading-tight">{enumerator.name}</span>
+                              <span
+                                className={`text-[10px] leading-tight ${
+                                  canSelect
+                                    ? 'text-foreground/70'
+                                    : 'text-foreground/50 font-semibold uppercase tracking-wide'
+                                }`}
+                              >
+                                {canSelect
+                                  ? formatEnumeratorSummary(enumerator)
+                                  : 'No GPS yet'}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Fullscreen Toggle Button */}
+          <button
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            className="absolute top-4 right-4 z-[1000] flex items-center gap-2 px-4 py-2.5 bg-brand-slate text-white rounded-lg shadow-xl hover:bg-brand-slate/90 transition-all hover:scale-105"
+          >
+            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            <span className="text-sm font-semibold">{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
+          </button>
+
+          {!isFullscreen && selectedVillageQuality && (
             <div className="rounded-2xl border border-brand-umber/25 bg-white/80 p-4 shadow-[0_18px_30px_-24px_rgba(43,37,57,0.3)] backdrop-blur">
               <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
                 <div>
@@ -988,7 +1136,7 @@ export default function Dashboard() {
             </div>
           )}
 
-          {selectedVillage && villageEnumerators.length > 0 && (
+          {!isFullscreen && selectedVillage && villageEnumerators.length > 0 && (
             <div className="rounded-2xl border border-brand-umber/25 bg-white/80 p-4 shadow-[0_18px_30px_-24px_rgba(43,37,57,0.3)] backdrop-blur">
               <div className="flex items-center justify-between gap-4">
                 <div>
@@ -1002,12 +1150,27 @@ export default function Dashboard() {
                 <div className="flex-1 max-w-md">
                   <select
                     value={selectedEnumerator || ''}
-                    onChange={(e) => setSelectedEnumerator(e.target.value || null)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (!value) {
+                        setSelectedEnumerator(null);
+                        return;
+                      }
+                      const matching = villageEnumerators.find((item) => item.id === value);
+                      if (matching && matching.gpsSubmissionCount === 0) {
+                        return;
+                      }
+                      setSelectedEnumerator(value);
+                    }}
                     className="w-full px-3 py-2 bg-white border border-brand-umber/30 rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
                   >
                     <option value="">All Enumerators</option>
                     {villageEnumerators.map((enumerator) => (
-                      <option key={enumerator.id} value={enumerator.id}>
+                      <option
+                        key={enumerator.id}
+                        value={enumerator.id}
+                        disabled={enumerator.gpsSubmissionCount === 0}
+                      >
                         {enumerator.name} ({formatEnumeratorSummary(enumerator)})
                       </option>
                     ))}
@@ -1015,29 +1178,42 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
-                {villageEnumerators.map((enumerator) => (
-                  <button
+                {villageEnumerators.map((enumerator) => {
+                  const canSelect = enumerator.gpsSubmissionCount > 0;
+                  const isActive = selectedEnumerator === enumerator.id;
+                  const buttonClasses = canSelect
+                    ? isActive
+                      ? 'bg-brand-slate text-white shadow-md'
+                      : 'bg-brand-oatmeal/60 text-foreground/80 hover:bg-brand-oatmeal border border-brand-umber/20'
+                    : 'bg-slate-200 text-foreground/50 border border-dashed border-brand-umber/30 cursor-not-allowed opacity-80';
+
+                  const handleClick = () => {
+                    if (!canSelect) return;
+                    setSelectedEnumerator(isActive ? null : enumerator.id);
+                  };
+
+                  return (
+                    <button
                       key={enumerator.id}
-                      onClick={() => setSelectedEnumerator(
-                        selectedEnumerator === enumerator.id ? null : enumerator.id
-                      )}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                        selectedEnumerator === enumerator.id
-                          ? 'bg-brand-slate text-white shadow-md'
-                          : 'bg-brand-oatmeal/60 text-foreground/80 hover:bg-brand-oatmeal border border-brand-umber/20'
-                      }`}
+                      type="button"
+                      disabled={!canSelect}
+                      aria-disabled={!canSelect}
+                      onClick={handleClick}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${buttonClasses}`}
                     >
-                      <span
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: enumerator.color }}
-                      />
-                      <div className="flex flex-col items-start">
+                      {canSelect && (
+                        <span
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: enumerator.color }}
+                        />
+                      )}
+                      <div className="flex flex-col items-start text-left">
                         <span className="text-xs font-semibold leading-tight">{enumerator.name}</span>
                         <span
                           className={`text-[10px] leading-tight ${
-                            enumerator.gpsSubmissionCount === 0
-                              ? 'text-danger font-semibold uppercase tracking-wide'
-                              : 'text-foreground/70'
+                            canSelect
+                              ? 'text-foreground/70'
+                              : 'text-foreground/50 font-semibold uppercase tracking-wide'
                           }`}
                         >
                           {enumerator.gpsSubmissionCount === 0
@@ -1047,13 +1223,14 @@ export default function Dashboard() {
                               : `GPS ${enumerator.gpsSubmissionCount}/${enumerator.submissionCount}`}
                         </span>
                       </div>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
 
-          <div className="bg-white/80 rounded-2xl shadow-[0_18px_30px_-24px_rgba(43,37,57,0.3)] border border-brand-umber/25 flex-1 overflow-hidden backdrop-blur">
+          <div className={`${isFullscreen ? 'h-full' : 'bg-white/80 rounded-2xl shadow-[0_18px_30px_-24px_rgba(43,37,57,0.3)] border border-brand-umber/25 backdrop-blur'} flex-1 overflow-hidden`}>
             <Map
               key={mapKey}
               villageTargets={villageTargets}
@@ -1068,9 +1245,10 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Village Cards - 30% width */}
-        <div className="w-[30%] p-6 pl-0">
-          <div className="bg-white/80 rounded-2xl shadow-[0_18px_30px_-24px_rgba(43,37,57,0.3)] border border-brand-umber/25 h-full overflow-hidden flex flex-col backdrop-blur">
+        {/* Village Cards - 30% width - Hidden in fullscreen */}
+        {!isFullscreen && (
+          <div className={sidePanelWrapperClasses}>
+            <div className="bg-white/80 rounded-2xl shadow-[0_18px_30px_-24px_rgba(43,37,57,0.3)] border border-brand-umber/25 h-full overflow-hidden flex flex-col backdrop-blur">
             <div className="p-5 border-b border-brand-umber/20 bg-brand-oatmeal/50">
               <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 tracking-wide uppercase">
                 <Award className="w-5 h-5 text-primary" />
@@ -1171,6 +1349,7 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {/* Error Toast */}

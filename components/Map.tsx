@@ -790,23 +790,36 @@ export default function Map({ villageTargets, selectedVillage, showGaps = true, 
           <div className="space-y-1.5 max-h-64 overflow-y-auto">
             {villageEnumerators
               .sort((a, b) => a.name.localeCompare(b.name))
-              .map((enumerator) => (
-                <div
-                  key={enumerator.id}
-                  className="flex items-center gap-2 text-xs"
-                >
-                  <span
-                    className="w-3 h-3 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: enumerator.color }}
-                  />
-                  <span className="text-foreground/90 truncate font-medium">
-                    {enumerator.name}
-                  </span>
-                  <span className="text-foreground/60 text-[10px] ml-auto">
-                    ({enumerator.submissionCount})
-                  </span>
-                </div>
-              ))}
+              .map((enumerator) => {
+                const hasGps = enumerator.gpsSubmissionCount > 0;
+                const summary = hasGps
+                  ? `GPS ${enumerator.gpsSubmissionCount}/${enumerator.submissionCount}${enumerator.missingGpsCount > 0 ? ` • ${enumerator.missingGpsCount} missing` : ''}`
+                  : 'No GPS yet';
+
+                return (
+                  <div
+                    key={enumerator.id}
+                    className={`flex items-center gap-2 text-xs ${hasGps ? 'text-foreground/80' : 'text-foreground/50'}`}
+                  >
+                    {hasGps ? (
+                      <span
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: enumerator.color }}
+                      />
+                    ) : (
+                      <span className="w-3 h-3 rounded-full border border-dashed border-foreground/40 flex-shrink-0 bg-transparent" />
+                    )}
+                    <div className="flex flex-col min-w-0">
+                      <span className="truncate font-medium text-foreground/90">
+                        {enumerator.name}
+                      </span>
+                      <span className={`text-[10px] ${hasGps ? 'text-foreground/60' : 'text-foreground/50 uppercase tracking-wide'}`}>
+                        {summary}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         </div>
       )}
