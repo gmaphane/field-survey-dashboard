@@ -965,28 +965,38 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
-                {villageEnumerators.map((enumerator) => (
-                  <button
-                    key={enumerator.id}
-                    onClick={() => setSelectedEnumerator(
-                      selectedEnumerator === enumerator.id ? null : enumerator.id
-                    )}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                      selectedEnumerator === enumerator.id
-                        ? 'bg-brand-slate text-white shadow-md'
-                        : 'bg-brand-oatmeal/60 text-foreground/80 hover:bg-brand-oatmeal border border-brand-umber/20'
-                    }`}
-                  >
-                    <span
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: enumerator.color }}
-                    />
-                    {enumerator.name}
+                {villageEnumerators.map((enumerator) => {
+                  // Debug: Log badge colors
+                  if (typeof window !== 'undefined' && !(window as any).__badgeColorLogged) {
+                    console.log(`Badge ${enumerator.id}:`, enumerator.color);
+                    if (villageEnumerators.indexOf(enumerator) === villageEnumerators.length - 1) {
+                      (window as any).__badgeColorLogged = true;
+                    }
+                  }
+
+                  return (
+                    <button
+                      key={enumerator.id}
+                      onClick={() => setSelectedEnumerator(
+                        selectedEnumerator === enumerator.id ? null : enumerator.id
+                      )}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                        selectedEnumerator === enumerator.id
+                          ? 'bg-brand-slate text-white shadow-md'
+                          : 'bg-brand-oatmeal/60 text-foreground/80 hover:bg-brand-oatmeal border border-brand-umber/20'
+                      }`}
+                    >
+                      <span
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: enumerator.color }}
+                      />
+                      {enumerator.name}
                     <span className="text-[10px] opacity-70">
                       ({enumerator.submissionCount})
                     </span>
                   </button>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
