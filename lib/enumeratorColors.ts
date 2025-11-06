@@ -47,6 +47,8 @@ export function extractEnumeratorInfo(submission: any): { id: string; name: stri
     'enumerator_code',
     'grp_general/Enumerator Code',
     'grp_general/enumerator_code',
+    'grp_general_enumerator_code',
+    'grp_general_Enumerator_Code',
     'enumeratorCode',
     'enumerator_id',
     '_enumerator_id',
@@ -56,12 +58,20 @@ export function extractEnumeratorInfo(submission: any): { id: string; name: stri
     'interviewerId',
   ];
 
+  // Debug: Log first submission to see available fields (only once)
+  if (typeof window !== 'undefined' && !(window as any).__enumDebugLogged) {
+    console.log('=== DEBUG: Sample submission fields ===');
+    console.log('Available keys:', Object.keys(submission).filter(k => k.toLowerCase().includes('enum') || k.toLowerCase().includes('interview')));
+    (window as any).__enumDebugLogged = true;
+  }
+
   // Find the first field that contains a valid E-code
   let enumeratorCode = null;
   for (const fieldName of possibleFields) {
     const value = submission[fieldName];
     if (isValidEnumeratorCode(value)) {
       enumeratorCode = String(value).trim().toUpperCase(); // Normalize to uppercase
+      console.log(`Found valid E-code: ${enumeratorCode} in field: ${fieldName}`);
       break;
     }
   }
