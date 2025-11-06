@@ -1002,15 +1002,6 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Fullscreen Toggle Button */}
-          <button
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            className="absolute top-4 right-4 z-[1000] flex items-center gap-2 px-4 py-2.5 bg-brand-slate text-white rounded-lg shadow-xl hover:bg-brand-slate/90 transition-all hover:scale-105"
-          >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-            <span className="text-sm font-semibold">{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
-          </button>
-
           {!isFullscreen && selectedVillageQuality && (
             <div className="rounded-2xl border border-brand-umber/25 bg-white/80 p-4 shadow-[0_18px_30px_-24px_rgba(43,37,57,0.3)] backdrop-blur">
               <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
