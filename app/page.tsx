@@ -808,19 +808,19 @@ export default function Dashboard() {
   };
 
   const mainLayoutClasses = isFullscreen
-    ? 'flex flex-col h-screen gap-0'
+    ? 'flex flex-col h-screen min-h-0 gap-0'
     : 'flex flex-col lg:flex-row min-h-[calc(100vh-80px)] lg:h-[calc(100vh-80px)] gap-4 lg:gap-6';
 
   const mapSectionClasses = isFullscreen
-    ? 'relative w-full flex-1 p-0 flex flex-col'
+    ? 'relative w-full flex-1 min-h-0 p-0 flex flex-col'
     : 'relative w-full lg:w-[70%] px-4 sm:px-6 pt-4 pb-6 flex flex-col gap-4';
 
   const mapShellClasses = isFullscreen
-    ? 'flex-1 h-full w-full overflow-hidden rounded-none border-0 bg-transparent shadow-none'
+    ? 'flex flex-1 min-h-0 w-full overflow-hidden rounded-none border-0 bg-transparent shadow-none'
     : 'flex-1 overflow-hidden rounded-2xl border border-brand-umber/25 bg-white/80 shadow-[0_18px_30px_-24px_rgba(43,37,57,0.3)] backdrop-blur';
 
   const mapInnerClasses = isFullscreen
-    ? 'relative h-full w-full'
+    ? 'relative flex-1 min-h-0 w-full'
     : 'relative h-full w-full min-h-[360px] sm:min-h-[420px]';
 
   const sidePanelWrapperClasses = 'w-full lg:w-[30%] px-4 sm:px-6 pb-6 lg:pl-0 order-last lg:order-none';

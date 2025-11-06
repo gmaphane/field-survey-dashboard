@@ -637,7 +637,7 @@ export default function Map({
         center={[-22.3285, 24.6849]}
         zoom={6}
         style={{ height: '100%', width: '100%' }}
-        className={isFullscreen ? 'rounded-[24px]' : 'rounded-xl'}
+        className={`h-full w-full ${isFullscreen ? 'rounded-none' : 'rounded-xl'}`}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
