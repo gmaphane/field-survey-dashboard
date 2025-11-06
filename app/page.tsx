@@ -12,8 +12,6 @@ import {
   Navigation,
   Clock,
   ListChecks,
-  Maximize2,
-  Minimize2,
 } from 'lucide-react';
 import Papa from 'papaparse';
 import type { VillageTargets, KoBoSubmission, EnumeratorInfo } from '@/types';
@@ -623,6 +621,12 @@ export default function Dashboard() {
     }
   }, [selectedEnumerator, villageEnumerators]);
 
+  useEffect(() => {
+    if (!selectedVillage && isFullscreen) {
+      setIsFullscreen(false);
+    }
+  }, [selectedVillage, isFullscreen]);
+
   const selectedVillageQuality = useMemo(() => {
     if (!selectedVillage || !selectedVillageData) return null;
 
@@ -804,16 +808,22 @@ export default function Dashboard() {
   };
 
   const mainLayoutClasses = isFullscreen
-    ? 'flex flex-col h-screen gap-4 lg:gap-6'
+    ? 'flex flex-col h-screen gap-4 sm:gap-6'
     : 'flex flex-col lg:flex-row min-h-[calc(100vh-80px)] lg:h-[calc(100vh-80px)] gap-4 lg:gap-6';
 
   const mapSectionClasses = isFullscreen
-    ? 'w-full p-0 flex-1'
-    : 'w-full lg:w-[70%] px-4 pt-4 pb-6 sm:p-6 flex-1';
+    ? 'relative w-full flex-1 px-3 sm:px-6 pb-0 sm:pb-6 flex flex-col gap-4'
+    : 'relative w-full lg:w-[70%] px-4 sm:px-6 pt-4 pb-6 flex flex-col gap-4';
 
-  const mapInnerBaseClasses = 'flex flex-col space-y-3 h-full relative min-h-[360px] sm:min-h-[420px]';
+  const mapShellClasses = isFullscreen
+    ? 'flex-1 h-full overflow-hidden rounded-[24px] border border-white/70 bg-white shadow-[0_32px_80px_-40px_rgba(43,37,57,0.5)]'
+    : 'flex-1 overflow-hidden rounded-2xl border border-brand-umber/25 bg-white/80 shadow-[0_18px_30px_-24px_rgba(43,37,57,0.3)] backdrop-blur';
 
-  const sidePanelWrapperClasses = 'w-full lg:w-[30%] px-4 pb-6 lg:p-6 lg:pl-0 order-last lg:order-none';
+  const mapInnerClasses = isFullscreen
+    ? 'relative h-full w-full'
+    : 'relative h-full w-full min-h-[360px] sm:min-h-[420px]';
+
+  const sidePanelWrapperClasses = 'w-full lg:w-[30%] px-4 sm:px-6 pb-6 lg:pl-0 order-last lg:order-none';
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -877,14 +887,14 @@ export default function Dashboard() {
       {/* Main Content: Map + Village Cards */}
       <div className={mainLayoutClasses}>
         {/* Map Section */}
-        <div className={`${mapSectionClasses} ${mapInnerBaseClasses}`}>
+        <div className={mapSectionClasses}>
           {/* Fullscreen Overlay Filters */}
           {isFullscreen && (
-            <div className="absolute top-4 left-4 right-4 z-[1000] pointer-events-none">
-              <div className="flex flex-col gap-3 pointer-events-auto">
+            <div className="absolute top-6 left-0 right-0 z-[1000] pointer-events-none px-4 sm:px-8">
+              <div className="pointer-events-auto mx-auto flex max-w-5xl flex-col gap-3">
                 {/* Village Selection Dropdown */}
                 {activeVillages.length > 0 && (
-                  <div className="rounded-xl border border-brand-umber/25 bg-white/95 p-3 shadow-lg backdrop-blur">
+                  <div className="rounded-2xl border border-white/70 bg-white/95 p-3 shadow-[0_20px_45px_-35px_rgba(43,37,57,0.55)] backdrop-blur">
                     <select
                       value={selectedVillage ? `${selectedVillage.district}|${selectedVillage.village}` : ''}
                       onChange={(e) => {
@@ -907,7 +917,7 @@ export default function Dashboard() {
 
                 {/* Enumerator Filter */}
                 {selectedVillage && villageEnumerators.length > 0 && (
-                  <div className="rounded-xl border border-brand-umber/25 bg-white/95 p-3 shadow-lg backdrop-blur">
+                  <div className="rounded-2xl border border-white/70 bg-white/95 p-3 shadow-[0_20px_45px_-35px_rgba(43,37,57,0.55)] backdrop-blur">
                     <div className="flex items-center gap-3">
                       <span className="text-xs font-semibold text-foreground/70 whitespace-nowrap">Enumerator:</span>
                       <select
@@ -1230,18 +1240,23 @@ export default function Dashboard() {
             </div>
           )}
 
-          <div className={`${isFullscreen ? 'h-full' : 'bg-white/80 rounded-2xl shadow-[0_18px_30px_-24px_rgba(43,37,57,0.3)] border border-brand-umber/25 backdrop-blur'} flex-1 overflow-hidden`}>
-            <Map
-              key={mapKey}
-              villageTargets={villageTargets}
-              selectedVillage={selectedVillage}
-              showGaps={showGaps}
-              showBuildings={showBuildings}
-              userLocation={userLocation}
-              selectedEnumerator={selectedEnumerator}
-              allEnumerators={allEnumerators}
-              villageEnumerators={villageEnumerators}
-            />
+          <div className={mapShellClasses}>
+            <div className={mapInnerClasses}>
+              <Map
+                key={mapKey}
+                villageTargets={villageTargets}
+                selectedVillage={selectedVillage}
+                showGaps={showGaps}
+                showBuildings={showBuildings}
+                userLocation={userLocation}
+                selectedEnumerator={selectedEnumerator}
+                allEnumerators={allEnumerators}
+                villageEnumerators={villageEnumerators}
+                isFullscreen={isFullscreen}
+                onToggleFullscreen={() => setIsFullscreen((prev) => !prev)}
+                canToggleFullscreen={Boolean(selectedVillage)}
+              />
+            </div>
           </div>
         </div>
 

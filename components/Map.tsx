@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup, Polygon, useMap, Pane } from 'react-leaflet';
 import type { BuildingCentroid, VillageTargets, EnumeratorInfo } from '@/types';
 import L, { type PathOptions } from 'leaflet';
+import { Maximize2, Minimize2 } from 'lucide-react';
 
 // Helper function to calculate distance between two GPS points (in meters)
 function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -327,6 +328,9 @@ interface MapProps {
   selectedEnumerator?: string | null;
   allEnumerators?: globalThis.Map<string, EnumeratorInfo>;
   villageEnumerators?: EnumeratorInfo[];
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
+  canToggleFullscreen?: boolean;
 }
 
 function MapUpdater({ villageTargets, selectedVillage, selectedEnumerator }: { villageTargets: VillageTargets, selectedVillage?: {district: string, village: string} | null, selectedEnumerator?: string | null }) {
@@ -406,7 +410,23 @@ function MapUpdater({ villageTargets, selectedVillage, selectedEnumerator }: { v
   return null;
 }
 
-export default function Map({ villageTargets, selectedVillage, showGaps = true, showBuildings = true, userLocation = null, selectedEnumerator = null, allEnumerators, villageEnumerators = [] }: MapProps) {
+export default function Map({
+  villageTargets,
+  selectedVillage,
+  showGaps = true,
+  showBuildings = true,
+  userLocation = null,
+  selectedEnumerator = null,
+  allEnumerators,
+  villageEnumerators = [],
+  isFullscreen = false,
+  onToggleFullscreen,
+  canToggleFullscreen = false,
+}: MapProps) {
+  const legendOffsetClass = canToggleFullscreen && onToggleFullscreen ? 'top-16 sm:top-[5.5rem]' : 'top-4';
+  const fullscreenButtonStyle = isFullscreen
+    ? 'bg-brand-slate text-white hover:bg-brand-slate/90 border-brand-slate/60'
+    : 'bg-white/95 text-brand-slate hover:bg-white border-white/70';
   const getMarkerColor = (percentage: number) => {
     if (percentage >= 100) return '#2B2539'; // slate - completed villages
     if (percentage >= 80) return '#F59E0B'; // bright orange - high progress but incomplete
@@ -617,7 +637,7 @@ export default function Map({ villageTargets, selectedVillage, showGaps = true, 
         center={[-22.3285, 24.6849]}
         zoom={6}
         style={{ height: '100%', width: '100%' }}
-        className="rounded-xl"
+        className={isFullscreen ? 'rounded-[24px]' : 'rounded-xl'}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -769,6 +789,17 @@ export default function Map({ villageTargets, selectedVillage, showGaps = true, 
         )}
       </MapContainer>
 
+      {canToggleFullscreen && onToggleFullscreen ? (
+        <button
+          type="button"
+          onClick={onToggleFullscreen}
+          className={`absolute right-4 top-4 z-[1100] flex h-10 w-10 items-center justify-center rounded-full border shadow-lg backdrop-blur ${fullscreenButtonStyle}`}
+          aria-label={isFullscreen ? 'Exit fullscreen map' : 'View map fullscreen'}
+        >
+          {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+        </button>
+      ) : null}
+
       {selectedVillage && isLoadingBuildings && (
         <div className="pointer-events-none absolute left-4 top-4 rounded bg-white/90 px-3 py-2 text-xs font-medium text-slate-700 shadow">
           Loading nearby building footprints…
@@ -783,7 +814,9 @@ export default function Map({ villageTargets, selectedVillage, showGaps = true, 
 
       {/* Enumerator Legend - only show village-specific enumerators */}
       {selectedVillage && villageEnumerators && villageEnumerators.length > 0 && (
-        <div className="absolute right-4 top-4 rounded-lg bg-white/95 px-4 py-3 shadow-lg backdrop-blur max-w-xs">
+        <div
+          className={`absolute right-4 ${legendOffsetClass} rounded-xl bg-white/95 px-4 py-3 shadow-lg backdrop-blur max-w-xs border border-white/70`}
+        >
           <div className="text-xs font-semibold text-foreground/80 mb-2 uppercase tracking-wide">
             Enumerators in {selectedVillage.village}
           </div>
