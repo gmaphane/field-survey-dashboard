@@ -423,20 +423,6 @@ export default function Dashboard() {
       // Extract enumerator information
       const enumeratorInfo = extractEnumeratorInfo(submission);
 
-      // Debug: Log if enumerator info is missing (only first few)
-      if (!enumeratorInfo && typeof window !== 'undefined') {
-        const debugKey = '__missingEnumCount';
-        if (!(window as any)[debugKey]) (window as any)[debugKey] = 0;
-        if ((window as any)[debugKey] < 3) {
-          console.log('Missing enumerator for submission:', {
-            id: submission._id,
-            grp_general_enumerator_id: submission['grp_general/enumerator_id'],
-            village: submission['grp_general/village'],
-          });
-          (window as any)[debugKey]++;
-        }
-      }
-
       const district = submission.district ||
                        submission.District ||
                        submission._district ||
@@ -965,17 +951,8 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
-                {villageEnumerators.map((enumerator) => {
-                  // Debug: Log badge colors
-                  if (typeof window !== 'undefined' && !(window as any).__badgeColorLogged) {
-                    console.log(`Badge ${enumerator.id}:`, enumerator.color);
-                    if (villageEnumerators.indexOf(enumerator) === villageEnumerators.length - 1) {
-                      (window as any).__badgeColorLogged = true;
-                    }
-                  }
-
-                  return (
-                    <button
+                {villageEnumerators.map((enumerator) => (
+                  <button
                       key={enumerator.id}
                       onClick={() => setSelectedEnumerator(
                         selectedEnumerator === enumerator.id ? null : enumerator.id
@@ -995,8 +972,7 @@ export default function Dashboard() {
                       ({enumerator.submissionCount})
                     </span>
                   </button>
-                  );
-                })}
+                ))}
               </div>
             </div>
           )}

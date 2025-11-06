@@ -652,26 +652,18 @@ export default function Map({ villageTargets, selectedVillage, showGaps = true, 
             ? household.enumeratorColor
             : getMarkerColor(household.percentage);
 
-          // Debug: Log color for first few markers when enumerator is selected
-          if (selectedEnumerator && index < 3 && typeof window !== 'undefined') {
-            console.log(`Marker ${index}:`, {
-              enumId: household.enumeratorId,
-              markerColor,
-              enumColor: household.enumeratorColor,
-              isSelected: household.isSelectedVillage
-            });
-          }
-
           return (
             <CircleMarker
               key={`marker-${index}`}
               center={[household.lat, household.lon]}
               radius={8}
-              fillColor={markerColor}
-              color="#fff"
-              weight={2}
-              opacity={1}
-              fillOpacity={0.8}
+              pathOptions={{
+                fillColor: markerColor,
+                color: "#fff",
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.8,
+              }}
             >
               <Popup>
                 <div className="text-sm">
