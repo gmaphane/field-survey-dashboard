@@ -312,7 +312,7 @@ interface MapProps {
   villageEnumerators?: EnumeratorInfo[];
 }
 
-function MapUpdater({ villageTargets, selectedVillage }: { villageTargets: VillageTargets, selectedVillage?: {district: string, village: string} | null }) {
+function MapUpdater({ villageTargets, selectedVillage, selectedEnumerator }: { villageTargets: VillageTargets, selectedVillage?: {district: string, village: string} | null, selectedEnumerator?: string | null }) {
   const map = useMap();
 
   useEffect(() => {
@@ -321,13 +321,19 @@ function MapUpdater({ villageTargets, selectedVillage }: { villageTargets: Villa
       const villageData = villageTargets[selectedVillage.district]?.[selectedVillage.village];
 
       if (villageData && villageData.households.length > 0) {
+        // If filtering by enumerator, only include that enumerator's points
+        let householdsToZoom = villageData.households;
+        if (selectedEnumerator) {
+          householdsToZoom = villageData.households.filter(h => h.enumeratorId === selectedEnumerator);
+        }
+
         // Remove outliers before zooming
-        const filteredHouseholds = removeOutliers(villageData.households);
+        const filteredHouseholds = removeOutliers(householdsToZoom);
 
         if (filteredHouseholds.length > 0) {
           const coords: [number, number][] = filteredHouseholds.map(h => [h.lat, h.lon]);
           const bounds = L.latLngBounds(coords);
-          map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+          map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
           return;
         }
       }
@@ -351,7 +357,7 @@ function MapUpdater({ villageTargets, selectedVillage }: { villageTargets: Villa
       // Default view (Botswana)
       map.setView([-22.3285, 24.6849], 6);
     }
-  }, [villageTargets, selectedVillage, map]);
+  }, [villageTargets, selectedVillage, selectedEnumerator, map]);
 
   return null;
 }
@@ -563,7 +569,7 @@ export default function Map({ villageTargets, selectedVillage, showGaps = true, 
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        <MapUpdater villageTargets={villageTargets} selectedVillage={selectedVillage} />
+        <MapUpdater villageTargets={villageTargets} selectedVillage={selectedVillage} selectedEnumerator={selectedEnumerator} />
 
         {/* Render spatial gaps as semi-transparent hexagons below other overlays */}
         {showGaps && (

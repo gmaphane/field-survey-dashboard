@@ -524,24 +524,34 @@ export default function Dashboard() {
     ? villageTargets[selectedVillage.district]?.[selectedVillage.village] ?? null
     : null;
 
-  // Get enumerators for the selected village
+  // Get enumerators for the selected village (including those without GPS)
   const villageEnumerators = useMemo(() => {
-    if (!selectedVillageData) return [];
+    if (!selectedVillage) return [];
 
     const enumeratorMap = new globalThis.Map<string, EnumeratorInfo>();
 
-    selectedVillageData.households.forEach((household) => {
-      if (household.enumeratorId) {
-        if (enumeratorMap.has(household.enumeratorId)) {
-          const existing = enumeratorMap.get(household.enumeratorId)!;
-          existing.submissionCount++;
-        } else {
-          const enumInfo = allEnumerators.get(household.enumeratorId);
-          if (enumInfo) {
-            enumeratorMap.set(household.enumeratorId, {
-              ...enumInfo,
-              submissionCount: 1,
-            });
+    // Get all submissions for the selected village (not just those with GPS)
+    const selectedDistrictKey = selectedVillage.district;
+    const selectedVillageKey = selectedVillage.village;
+
+    surveyData.forEach((submission) => {
+      const districtKey = extractSubmissionValue(submission, DISTRICT_KEYS);
+      const villageKey = extractSubmissionValue(submission, VILLAGE_KEYS);
+
+      if (districtKey === selectedDistrictKey && villageKey === selectedVillageKey) {
+        const enumeratorInfo = extractEnumeratorInfo(submission);
+        if (enumeratorInfo) {
+          if (enumeratorMap.has(enumeratorInfo.id)) {
+            const existing = enumeratorMap.get(enumeratorInfo.id)!;
+            existing.submissionCount++;
+          } else {
+            const enumInfo = allEnumerators.get(enumeratorInfo.id);
+            if (enumInfo) {
+              enumeratorMap.set(enumeratorInfo.id, {
+                ...enumInfo,
+                submissionCount: 1,
+              });
+            }
           }
         }
       }
@@ -550,7 +560,7 @@ export default function Dashboard() {
     return Array.from(enumeratorMap.values()).sort((a, b) =>
       a.name.localeCompare(b.name)
     );
-  }, [selectedVillageData, allEnumerators]);
+  }, [selectedVillage, surveyData, allEnumerators]);
 
   const selectedVillageQuality = useMemo(() => {
     if (!selectedVillage || !selectedVillageData) return null;
