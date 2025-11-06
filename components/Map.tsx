@@ -484,24 +484,32 @@ export default function Map({ villageTargets, selectedVillage, showGaps = true, 
     enumeratorId?: string;
     enumeratorName?: string;
     enumeratorColor?: string;
+    isSelectedVillage?: boolean;
   }> = [];
 
   Object.entries(villageTargets).forEach(([district, villages]) => {
     Object.entries(villages).forEach(([villageName, villageData]) => {
       const filteredHouseholds = removeOutliers(villageData.households);
 
+      // Check if this is the selected village
+      const isSelectedVillage = selectedVillage &&
+        selectedVillage.district === district &&
+        selectedVillage.village === villageName;
+
       filteredHouseholds.forEach((household) => {
-        // If we're viewing a specific village with an enumerator filter, only show that enumerator's points
+        // If we have a village selected with enumerator filter
         if (selectedVillage && selectedEnumerator) {
-          if (selectedVillage.district === district && selectedVillage.village === villageName) {
+          // Only show points from the selected village that match the enumerator
+          if (isSelectedVillage) {
             if (household.enumeratorId !== selectedEnumerator) {
-              return; // Skip this household
+              return; // Skip this household - wrong enumerator
             }
           } else {
-            return; // Skip households from other villages
+            return; // Skip households from other villages when filtering
           }
         }
 
+        // Get color from allEnumerators map
         const enumeratorColor = household.enumeratorId && allEnumerators
           ? allEnumerators.get(household.enumeratorId)?.color
           : undefined;
@@ -517,6 +525,7 @@ export default function Map({ villageTargets, selectedVillage, showGaps = true, 
           enumeratorId: household.enumeratorId,
           enumeratorName: household.enumeratorName,
           enumeratorColor,
+          isSelectedVillage: isSelectedVillage || false,
         });
       });
     });
@@ -632,8 +641,8 @@ export default function Map({ villageTargets, selectedVillage, showGaps = true, 
 
         {/* Render GPS markers */}
         {allHouseholds.map((household, index) => {
-          // Use enumerator color if available and we're viewing a selected village
-          const markerColor = selectedVillage && household.enumeratorColor
+          // Use enumerator color for selected village markers, otherwise use progress color
+          const markerColor = household.isSelectedVillage && household.enumeratorColor
             ? household.enumeratorColor
             : getMarkerColor(household.percentage);
 

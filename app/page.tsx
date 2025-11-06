@@ -423,6 +423,20 @@ export default function Dashboard() {
       // Extract enumerator information
       const enumeratorInfo = extractEnumeratorInfo(submission);
 
+      // Debug: Log if enumerator info is missing (only first few)
+      if (!enumeratorInfo && typeof window !== 'undefined') {
+        const debugKey = '__missingEnumCount';
+        if (!(window as any)[debugKey]) (window as any)[debugKey] = 0;
+        if ((window as any)[debugKey] < 3) {
+          console.log('Missing enumerator for submission:', {
+            id: submission._id,
+            grp_general_enumerator_id: submission['grp_general/enumerator_id'],
+            village: submission['grp_general/village'],
+          });
+          (window as any)[debugKey]++;
+        }
+      }
+
       const district = submission.district ||
                        submission.District ||
                        submission._district ||
