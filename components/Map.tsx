@@ -21,7 +21,16 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): nu
   return R * c;
 }
 
-// Remove outliers using IQR method
+const median = (sortedValues: number[]): number => {
+  if (sortedValues.length === 0) return 0;
+  const mid = Math.floor(sortedValues.length / 2);
+  if (sortedValues.length % 2 === 0) {
+    return (sortedValues[mid - 1] + sortedValues[mid]) / 2;
+  }
+  return sortedValues[mid];
+};
+
+// Remove obvious spatial outliers using a robust MAD threshold
 function removeOutliers<T extends { lat: number; lon: number }>(coords: T[]): T[] {
   if (coords.length < 4) return coords; // Need at least 4 points for meaningful outlier detection
 
@@ -35,21 +44,29 @@ function removeOutliers<T extends { lat: number; lon: number }>(coords: T[]): T[
     distance: getDistance(centerLat, centerLon, point.lat, point.lon)
   }));
 
-  // Sort by distance
+  // Sort by distance for consistent trimming
   distances.sort((a, b) => a.distance - b.distance);
+  const distanceValues = distances.map((entry) => entry.distance);
 
-  // Calculate IQR
-  const q1Index = Math.floor(distances.length * 0.25);
-  const q3Index = Math.floor(distances.length * 0.75);
-  const q1 = distances[q1Index].distance;
-  const q3 = distances[q3Index].distance;
-  const iqr = q3 - q1;
+  const medianDistance = median(distanceValues);
+  const deviationValues = distanceValues.map((distance) => Math.abs(distance - medianDistance)).sort((a, b) => a - b);
+  const mad = median(deviationValues);
+  const scaledMad = mad * 1.4826; // Convert MAD to a standard deviation analog
 
-  // Filter outliers (points beyond 1.5 * IQR from Q3)
-  const threshold = q3 + 1.5 * iqr;
-  const filtered = distances.filter(d => d.distance <= threshold);
+  // Allow a generous radius around the median cluster
+  const adaptiveThreshold = scaledMad > 0
+    ? medianDistance + 3 * scaledMad
+    : medianDistance + Math.max(50, medianDistance * 0.15);
 
-  return filtered.map(({ point }) => point);
+  const filtered = distances.filter((entry) => entry.distance <= adaptiveThreshold);
+
+  // Ensure we keep the bulk of the cluster even if the threshold is very tight
+  const minimumKeep = Math.min(coords.length, Math.max(3, Math.ceil(coords.length * 0.6)));
+  const safeFiltered = filtered.length >= minimumKeep
+    ? filtered
+    : distances.slice(0, minimumKeep);
+
+  return safeFiltered.map(({ point }) => point);
 }
 
 type LatLngPoint = { lat: number; lon: number };
@@ -327,11 +344,20 @@ function MapUpdater({ villageTargets, selectedVillage, selectedEnumerator }: { v
           householdsToZoom = villageData.households.filter(h => h.enumeratorId === selectedEnumerator);
         }
 
+        if (selectedEnumerator && householdsToZoom.length === 0) {
+          // Enumerator selected but no GPS points; keep current view until data arrives.
+          return;
+        }
+
         if (householdsToZoom.length > 0) {
-          // Remove outliers ONLY for zoom calculation (keeps outliers visible on map)
-          const mainCluster = householdsToZoom.length > 4
-            ? removeOutliers(householdsToZoom)
-            : householdsToZoom;
+          let mainCluster = householdsToZoom;
+
+          if (!selectedEnumerator && householdsToZoom.length > 4) {
+            const filtered = removeOutliers(householdsToZoom);
+            if (filtered.length > 1) {
+              mainCluster = filtered;
+            }
+          }
 
           if (mainCluster.length > 0) {
             const coords: [number, number][] = mainCluster.map(h => [h.lat, h.lon]);
@@ -513,14 +539,25 @@ export default function Map({ villageTargets, selectedVillage, showGaps = true, 
 
   Object.entries(villageTargets).forEach(([district, villages]) => {
     Object.entries(villages).forEach(([villageName, villageData]) => {
-      const filteredHouseholds = removeOutliers(villageData.households);
-
       // Check if this is the selected village
       const isSelectedVillage = selectedVillage &&
         selectedVillage.district === district &&
         selectedVillage.village === villageName;
 
-      filteredHouseholds.forEach((household) => {
+      const shouldBypassOutliers = Boolean(selectedEnumerator && isSelectedVillage);
+
+      const householdsForVillage = (() => {
+        if (villageData.households.length === 0) {
+          return [] as typeof villageData.households;
+        }
+        if (shouldBypassOutliers) {
+          return villageData.households;
+        }
+        const filtered = removeOutliers(villageData.households);
+        return filtered.length > 0 ? filtered : villageData.households;
+      })();
+
+      householdsForVillage.forEach((household) => {
         // If we have a village selected with enumerator filter
         if (selectedVillage && selectedEnumerator) {
           // Only show points from the selected village that match the enumerator

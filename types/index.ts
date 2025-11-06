@@ -63,4 +63,6 @@ export interface EnumeratorInfo {
   name: string;
   color: string;
   submissionCount: number;
+  gpsSubmissionCount: number;
+  missingGpsCount: number;
 }

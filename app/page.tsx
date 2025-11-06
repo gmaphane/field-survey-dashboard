@@ -83,6 +83,48 @@ const extractSubmissionValue = (submission: KoBoSubmission, keys: string[]): str
   return '';
 };
 
+const extractGpsCoordinates = (submission: KoBoSubmission): { lat: number | null; lon: number | null } => {
+  const gps = submission._gps || submission.gps || submission._geolocation;
+
+  let lat: number | null = null;
+  let lon: number | null = null;
+
+  if (typeof gps === 'string') {
+    const coords = gps.split(/[ ,]+/).filter(Boolean);
+    if (coords.length >= 2) {
+      const parsedLat = parseFloat(coords[0]);
+      const parsedLon = parseFloat(coords[1]);
+      lat = Number.isFinite(parsedLat) ? parsedLat : null;
+      lon = Number.isFinite(parsedLon) ? parsedLon : null;
+    }
+  } else if (Array.isArray(gps)) {
+    if (gps.length >= 2) {
+      const parsedLat = parseFloat(gps[0] as any);
+      const parsedLon = parseFloat(gps[1] as any);
+      lat = Number.isFinite(parsedLat) ? parsedLat : null;
+      lon = Number.isFinite(parsedLon) ? parsedLon : null;
+    }
+  } else if (gps && typeof gps === 'object') {
+    const rawLat = (gps as any).latitude ?? (gps as any).lat;
+    const rawLon = (gps as any).longitude ?? (gps as any).lon ?? (gps as any).lng;
+    const parsedLat = rawLat !== undefined ? parseFloat(rawLat) : NaN;
+    const parsedLon = rawLon !== undefined ? parseFloat(rawLon) : NaN;
+    lat = Number.isFinite(parsedLat) ? parsedLat : null;
+    lon = Number.isFinite(parsedLon) ? parsedLon : null;
+  }
+
+  if (lat === null || lon === null) {
+    return { lat: null, lon: null };
+  }
+
+  // Sanity-check ranges; discard obvious noise
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+    return { lat: null, lon: null };
+  }
+
+  return { lat, lon };
+};
+
 const extractLatestTimestamp = (submission: KoBoSubmission): Date | null => {
   let latest: Date | null = null;
 
@@ -176,6 +218,23 @@ const computeFieldFillRate = (submission: KoBoSubmission): number | null => {
 
   if (totalFields === 0) return null;
   return Math.round((filledFields / totalFields) * 100);
+};
+
+const formatEnumeratorSummary = (enumerator: EnumeratorInfo): string => {
+  const total = enumerator.submissionCount;
+  const gps = enumerator.gpsSubmissionCount;
+  const missing = enumerator.missingGpsCount;
+
+  if (total === 0) {
+    return 'No submissions yet';
+  }
+
+  if (gps === 0) {
+    return `${total} submission${total === 1 ? '' : 's'} • No GPS yet`;
+  }
+
+  const missingPart = missing > 0 ? ` • ${missing} missing` : '';
+  return `${gps}/${total} GPS${missingPart}`;
 };
 
 export default function Dashboard() {
@@ -405,23 +464,33 @@ export default function Dashboard() {
 
     // Process each submission
     submissions.forEach((submission) => {
-      const gps = submission._gps || submission.gps || submission._geolocation;
-      let lat: number | undefined, lon: number | undefined;
-
-      if (typeof gps === 'string') {
-        const coords = gps.split(' ');
-        lat = parseFloat(coords[0]);
-        lon = parseFloat(coords[1]);
-      } else if (Array.isArray(gps)) {
-        lat = parseFloat(gps[0] as any);
-        lon = parseFloat(gps[1] as any);
-      } else if (gps && typeof gps === 'object') {
-        lat = parseFloat((gps as any).latitude || (gps as any).lat);
-        lon = parseFloat((gps as any).longitude || (gps as any).lon || (gps as any).lng);
-      }
+      const { lat, lon } = extractGpsCoordinates(submission);
+      const hasValidGps = lat !== null && lon !== null;
 
       // Extract enumerator information
       const enumeratorInfo = extractEnumeratorInfo(submission);
+      if (enumeratorInfo) {
+        const existing = enumeratorMap.get(enumeratorInfo.id);
+        const target = existing ?? {
+          id: enumeratorInfo.id,
+          name: enumeratorInfo.name,
+          color: '', // Assigned after processing all enumerators
+          submissionCount: 0,
+          gpsSubmissionCount: 0,
+          missingGpsCount: 0,
+        };
+
+        target.submissionCount += 1;
+        if (hasValidGps) {
+          target.gpsSubmissionCount += 1;
+        } else {
+          target.missingGpsCount += 1;
+        }
+
+        if (!existing) {
+          enumeratorMap.set(enumeratorInfo.id, target);
+        }
+      }
 
       const district = submission.district ||
                        submission.District ||
@@ -440,25 +509,10 @@ export default function Dashboard() {
       if (districtKey && villageKey && updatedTargets[districtKey]?.[villageKey]) {
         updatedTargets[districtKey][villageKey].actual++;
 
-        if (lat && lon && !isNaN(lat) && !isNaN(lon)) {
-          // Track enumerator
-          if (enumeratorInfo) {
-            if (enumeratorMap.has(enumeratorInfo.id)) {
-              const existing = enumeratorMap.get(enumeratorInfo.id)!;
-              existing.submissionCount++;
-            } else {
-              enumeratorMap.set(enumeratorInfo.id, {
-                id: enumeratorInfo.id,
-                name: enumeratorInfo.name,
-                color: '', // Will be set after we have all enumerators
-                submissionCount: 1,
-              });
-            }
-          }
-
+        if (hasValidGps) {
           updatedTargets[districtKey][villageKey].households.push({
-            lat,
-            lon,
+            lat: lat as number,
+            lon: lon as number,
             data: submission,
             enumeratorId: enumeratorInfo?.id,
             enumeratorName: enumeratorInfo?.name,
@@ -515,10 +569,9 @@ export default function Dashboard() {
     if (!selectedVillage) return [];
 
     const enumeratorMap = new globalThis.Map<string, EnumeratorInfo>();
-
-    // Get all submissions for the selected village (not just those with GPS)
     const selectedDistrictKey = selectedVillage.district;
     const selectedVillageKey = selectedVillage.village;
+    const enumeratorIdsForColor = Array.from(allEnumerators.keys());
 
     surveyData.forEach((submission) => {
       const districtKey = extractSubmissionValue(submission, DISTRICT_KEYS);
@@ -526,19 +579,30 @@ export default function Dashboard() {
 
       if (districtKey === selectedDistrictKey && villageKey === selectedVillageKey) {
         const enumeratorInfo = extractEnumeratorInfo(submission);
-        if (enumeratorInfo) {
-          if (enumeratorMap.has(enumeratorInfo.id)) {
-            const existing = enumeratorMap.get(enumeratorInfo.id)!;
-            existing.submissionCount++;
-          } else {
-            const enumInfo = allEnumerators.get(enumeratorInfo.id);
-            if (enumInfo) {
-              enumeratorMap.set(enumeratorInfo.id, {
-                ...enumInfo,
-                submissionCount: 1,
-              });
-            }
-          }
+        if (!enumeratorInfo) return;
+
+        const base = allEnumerators.get(enumeratorInfo.id);
+        const existing = enumeratorMap.get(enumeratorInfo.id);
+        const target = existing ?? {
+          id: enumeratorInfo.id,
+          name: base?.name ?? enumeratorInfo.name,
+          color: base?.color ?? getEnumeratorColor(enumeratorInfo.id, enumeratorIdsForColor),
+          submissionCount: 0,
+          gpsSubmissionCount: 0,
+          missingGpsCount: 0,
+        };
+
+        target.submissionCount += 1;
+
+        const { lat, lon } = extractGpsCoordinates(submission);
+        if (lat !== null && lon !== null) {
+          target.gpsSubmissionCount += 1;
+        } else {
+          target.missingGpsCount += 1;
+        }
+
+        if (!existing) {
+          enumeratorMap.set(enumeratorInfo.id, target);
         }
       }
     });
@@ -944,7 +1008,7 @@ export default function Dashboard() {
                     <option value="">All Enumerators</option>
                     {villageEnumerators.map((enumerator) => (
                       <option key={enumerator.id} value={enumerator.id}>
-                        {enumerator.name} ({enumerator.submissionCount} submission{enumerator.submissionCount === 1 ? '' : 's'})
+                        {enumerator.name} ({formatEnumeratorSummary(enumerator)})
                       </option>
                     ))}
                   </select>
@@ -967,10 +1031,22 @@ export default function Dashboard() {
                         className="w-3 h-3 rounded-full"
                         style={{ backgroundColor: enumerator.color }}
                       />
-                      {enumerator.name}
-                    <span className="text-[10px] opacity-70">
-                      ({enumerator.submissionCount})
-                    </span>
+                      <div className="flex flex-col items-start">
+                        <span className="text-xs font-semibold leading-tight">{enumerator.name}</span>
+                        <span
+                          className={`text-[10px] leading-tight ${
+                            enumerator.gpsSubmissionCount === 0
+                              ? 'text-danger font-semibold uppercase tracking-wide'
+                              : 'text-foreground/70'
+                          }`}
+                        >
+                          {enumerator.gpsSubmissionCount === 0
+                            ? 'No GPS yet'
+                            : enumerator.missingGpsCount > 0
+                              ? `GPS ${enumerator.gpsSubmissionCount}/${enumerator.submissionCount} • ${enumerator.missingGpsCount} missing`
+                              : `GPS ${enumerator.gpsSubmissionCount}/${enumerator.submissionCount}`}
+                        </span>
+                      </div>
                   </button>
                 ))}
               </div>
