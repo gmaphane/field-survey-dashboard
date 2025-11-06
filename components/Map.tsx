@@ -316,7 +316,7 @@ function MapUpdater({ villageTargets, selectedVillage, selectedEnumerator }: { v
   const map = useMap();
 
   useEffect(() => {
-    // If a specific village is selected, zoom to it (with outlier removal)
+    // If a specific village is selected, zoom to focus on main cluster
     if (selectedVillage) {
       const villageData = villageTargets[selectedVillage.district]?.[selectedVillage.village];
 
@@ -328,17 +328,17 @@ function MapUpdater({ villageTargets, selectedVillage, selectedEnumerator }: { v
         }
 
         if (householdsToZoom.length > 0) {
-          // Remove outliers before zooming (always apply for better zoom accuracy)
-          const filteredHouseholds = householdsToZoom.length > 4
+          // Remove outliers ONLY for zoom calculation (keeps outliers visible on map)
+          const mainCluster = householdsToZoom.length > 4
             ? removeOutliers(householdsToZoom)
             : householdsToZoom;
 
-          if (filteredHouseholds.length > 0) {
-            const coords: [number, number][] = filteredHouseholds.map(h => [h.lat, h.lon]);
+          if (mainCluster.length > 0) {
+            const coords: [number, number][] = mainCluster.map(h => [h.lat, h.lon]);
             const bounds = L.latLngBounds(coords);
-            // Use appropriate zoom and padding
-            const padding: [number, number] = filteredHouseholds.length === 1 ? [100, 100] : [50, 50];
-            const maxZoom = filteredHouseholds.length === 1 ? 17 : 16;
+            // Zoom to main cluster with more generous padding and zoom level
+            const padding: [number, number] = [120, 120];
+            const maxZoom = 15; // Zoom level that shows the village area clearly
             map.fitBounds(bounds, { padding, maxZoom });
             return;
           }
