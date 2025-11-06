@@ -327,32 +327,50 @@ function MapUpdater({ villageTargets, selectedVillage, selectedEnumerator }: { v
           householdsToZoom = villageData.households.filter(h => h.enumeratorId === selectedEnumerator);
         }
 
-        // Remove outliers before zooming
-        const filteredHouseholds = removeOutliers(householdsToZoom);
+        if (householdsToZoom.length > 0) {
+          // Remove outliers before zooming (always apply for better zoom accuracy)
+          const filteredHouseholds = householdsToZoom.length > 4
+            ? removeOutliers(householdsToZoom)
+            : householdsToZoom;
 
-        if (filteredHouseholds.length > 0) {
-          const coords: [number, number][] = filteredHouseholds.map(h => [h.lat, h.lon]);
-          const bounds = L.latLngBounds(coords);
-          map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
-          return;
+          if (filteredHouseholds.length > 0) {
+            const coords: [number, number][] = filteredHouseholds.map(h => [h.lat, h.lon]);
+            const bounds = L.latLngBounds(coords);
+            // Use appropriate zoom and padding
+            const padding: [number, number] = filteredHouseholds.length === 1 ? [100, 100] : [50, 50];
+            const maxZoom = filteredHouseholds.length === 1 ? 17 : 16;
+            map.fitBounds(bounds, { padding, maxZoom });
+            return;
+          }
         }
       }
     }
 
-    // Otherwise, show all points
-    const allCoords: [number, number][] = [];
+    // Otherwise, show all points (with outlier removal)
+    const allHouseholds: { lat: number; lon: number }[] = [];
 
     Object.values(villageTargets).forEach((district) => {
       Object.values(district).forEach((village) => {
         village.households.forEach((household) => {
-          allCoords.push([household.lat, household.lon]);
+          allHouseholds.push({ lat: household.lat, lon: household.lon });
         });
       });
     });
 
-    if (allCoords.length > 0) {
-      const bounds = L.latLngBounds(allCoords);
-      map.fitBounds(bounds, { padding: [50, 50] });
+    if (allHouseholds.length > 0) {
+      // Remove outliers from the global view as well
+      const filteredForGlobal = allHouseholds.length > 4
+        ? removeOutliers(allHouseholds)
+        : allHouseholds;
+
+      if (filteredForGlobal.length > 0) {
+        const coords: [number, number][] = filteredForGlobal.map(h => [h.lat, h.lon]);
+        const bounds = L.latLngBounds(coords);
+        map.fitBounds(bounds, { padding: [50, 50] });
+      } else {
+        // Fallback to default view
+        map.setView([-22.3285, 24.6849], 6);
+      }
     } else {
       // Default view (Botswana)
       map.setView([-22.3285, 24.6849], 6);
