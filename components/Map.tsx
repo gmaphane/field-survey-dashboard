@@ -308,7 +308,7 @@ interface MapProps {
   showBuildings?: boolean;
   userLocation?: {lat: number, lon: number} | null;
   selectedEnumerator?: string | null;
-  allEnumerators?: Map<string, EnumeratorInfo>;
+  allEnumerators?: globalThis.Map<string, EnumeratorInfo>;
 }
 
 function MapUpdater({ villageTargets, selectedVillage }: { villageTargets: VillageTargets, selectedVillage?: {district: string, village: string} | null }) {

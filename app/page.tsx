@@ -199,7 +199,7 @@ export default function Dashboard() {
   const [isLocating, setIsLocating] = useState(false);
   const [showWhereNext, setShowWhereNext] = useState(false);
   const [selectedEnumerator, setSelectedEnumerator] = useState<string | null>(null);
-  const [allEnumerators, setAllEnumerators] = useState<Map<string, EnumeratorInfo>>(new Map());
+  const [allEnumerators, setAllEnumerators] = useState<globalThis.Map<string, EnumeratorInfo>>(new globalThis.Map());
 
   // Auto-load CSV and connect on mount
   useEffect(() => {
@@ -393,7 +393,7 @@ export default function Dashboard() {
   // Process submissions and match to villages
   const processSubmissions = (submissions: KoBoSubmission[]) => {
     const updatedTargets = JSON.parse(JSON.stringify(villageTargets));
-    const enumeratorMap = new Map<string, EnumeratorInfo>();
+    const enumeratorMap = new globalThis.Map<string, EnumeratorInfo>();
 
     // Reset counts
     Object.values(updatedTargets).forEach((district: any) => {
@@ -514,7 +514,7 @@ export default function Dashboard() {
   const villageEnumerators = useMemo(() => {
     if (!selectedVillageData) return [];
 
-    const enumeratorMap = new Map<string, EnumeratorInfo>();
+    const enumeratorMap = new globalThis.Map<string, EnumeratorInfo>();
 
     selectedVillageData.households.forEach((household) => {
       if (household.enumeratorId) {
