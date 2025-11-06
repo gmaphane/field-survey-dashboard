@@ -1240,13 +1240,12 @@ export default function Dashboard() {
                 showGaps={showGaps}
                 showBuildings={showBuildings}
                 userLocation={userLocation}
-                selectedEnumerator={selectedEnumerator}
-                allEnumerators={allEnumerators}
-                villageEnumerators={villageEnumerators}
-                isFullscreen={isFullscreen}
-                onToggleFullscreen={() => setIsFullscreen((prev) => !prev)}
-                canToggleFullscreen={Boolean(selectedVillage)}
-              />
+              selectedEnumerator={selectedEnumerator}
+              allEnumerators={allEnumerators}
+              isFullscreen={isFullscreen}
+              onToggleFullscreen={() => setIsFullscreen((prev) => !prev)}
+              canToggleFullscreen={Boolean(selectedVillage)}
+            />
             </div>
           </div>
         </div>

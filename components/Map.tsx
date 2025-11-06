@@ -327,13 +327,12 @@ interface MapProps {
   userLocation?: {lat: number, lon: number} | null;
   selectedEnumerator?: string | null;
   allEnumerators?: globalThis.Map<string, EnumeratorInfo>;
-  villageEnumerators?: EnumeratorInfo[];
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
   canToggleFullscreen?: boolean;
 }
 
-function MapUpdater({ villageTargets, selectedVillage, selectedEnumerator }: { villageTargets: VillageTargets, selectedVillage?: {district: string, village: string} | null, selectedEnumerator?: string | null }) {
+function MapUpdater({ villageTargets, selectedVillage, selectedEnumerator, isFullscreen }: { villageTargets: VillageTargets, selectedVillage?: {district: string, village: string} | null, selectedEnumerator?: string | null, isFullscreen: boolean }) {
   const map = useMap();
 
   useEffect(() => {
@@ -366,10 +365,15 @@ function MapUpdater({ villageTargets, selectedVillage, selectedEnumerator }: { v
           if (mainCluster.length > 0) {
             const coords: [number, number][] = mainCluster.map(h => [h.lat, h.lon]);
             const bounds = L.latLngBounds(coords);
-            // Zoom to main cluster with more generous padding and zoom level
-            const padding: [number, number] = [120, 120];
-            const maxZoom = 15; // Zoom level that shows the village area clearly
-            map.fitBounds(bounds, { padding, maxZoom });
+            const overlayShiftPx = isFullscreen ? 150 : 60;
+            const paddingPoint = L.point(80, 80 + (isFullscreen ? 60 : 0));
+            const zoomFromBounds = map.getBoundsZoom(bounds, false, paddingPoint);
+            const maxZoom = selectedEnumerator ? 17 : 15;
+            const targetZoom = Math.min(maxZoom, zoomFromBounds);
+            const clusterCenter = bounds.getCenter();
+            const projectedCenter = map.project(clusterCenter, targetZoom);
+            const adjustedCenter = map.unproject(projectedCenter.subtract([0, overlayShiftPx]), targetZoom);
+            map.setView(adjustedCenter, targetZoom, { animate: true });
             return;
           }
         }
@@ -405,7 +409,21 @@ function MapUpdater({ villageTargets, selectedVillage, selectedEnumerator }: { v
       // Default view (Botswana)
       map.setView([-22.3285, 24.6849], 6);
     }
-  }, [villageTargets, selectedVillage, selectedEnumerator, map]);
+  }, [villageTargets, selectedVillage, selectedEnumerator, isFullscreen, map]);
+
+  return null;
+}
+
+function MapResizeController({ isFullscreen }: { isFullscreen: boolean }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map) return;
+    const handle = window.setTimeout(() => {
+      map.invalidateSize();
+    }, 80);
+    return () => window.clearTimeout(handle);
+  }, [isFullscreen, map]);
 
   return null;
 }
@@ -432,12 +450,10 @@ export default function Map({
   userLocation = null,
   selectedEnumerator = null,
   allEnumerators,
-  villageEnumerators = [],
   isFullscreen = false,
   onToggleFullscreen,
   canToggleFullscreen = false,
 }: MapProps) {
-  const legendOffsetClass = canToggleFullscreen && onToggleFullscreen ? 'top-16 sm:top-[5.5rem]' : 'top-4';
   const fullscreenButtonStyle = isFullscreen
     ? 'bg-brand-slate text-white hover:bg-brand-slate/90 border-brand-slate/60'
     : 'bg-white/95 text-brand-slate hover:bg-white border-white/70';
@@ -571,12 +587,18 @@ export default function Map({
     isSelectedVillage?: boolean;
   }> = [];
 
+  const restrictToSelectedVillage = Boolean(selectedVillage);
+
   Object.entries(villageTargets).forEach(([district, villages]) => {
     Object.entries(villages).forEach(([villageName, villageData]) => {
       // Check if this is the selected village
       const isSelectedVillage = selectedVillage &&
         selectedVillage.district === district &&
         selectedVillage.village === villageName;
+
+      if (restrictToSelectedVillage && !isSelectedVillage) {
+        return;
+      }
 
       const shouldBypassOutliers = Boolean(selectedEnumerator && isSelectedVillage);
 
@@ -658,7 +680,12 @@ export default function Map({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        <MapUpdater villageTargets={villageTargets} selectedVillage={selectedVillage} selectedEnumerator={selectedEnumerator} />
+        <MapUpdater
+          villageTargets={villageTargets}
+          selectedVillage={selectedVillage}
+          selectedEnumerator={selectedEnumerator}
+          isFullscreen={isFullscreen}
+        />
         <MapResizeController isFullscreen={isFullscreen} />
 
         {/* Render spatial gaps as semi-transparent hexagons below other overlays */}
@@ -827,50 +854,6 @@ export default function Map({
         </div>
       )}
 
-      {/* Enumerator Legend - only show village-specific enumerators */}
-      {selectedVillage && villageEnumerators && villageEnumerators.length > 0 && (
-        <div
-          className={`absolute right-4 ${legendOffsetClass} rounded-xl bg-white/95 px-4 py-3 shadow-lg backdrop-blur max-w-xs border border-white/70`}
-        >
-          <div className="text-xs font-semibold text-foreground/80 mb-2 uppercase tracking-wide">
-            Enumerators in {selectedVillage.village}
-          </div>
-          <div className="space-y-1.5 max-h-64 overflow-y-auto">
-            {villageEnumerators
-              .sort((a, b) => a.name.localeCompare(b.name))
-              .map((enumerator) => {
-                const hasGps = enumerator.gpsSubmissionCount > 0;
-                const summary = hasGps
-                  ? `GPS ${enumerator.gpsSubmissionCount}/${enumerator.submissionCount}${enumerator.missingGpsCount > 0 ? ` • ${enumerator.missingGpsCount} missing` : ''}`
-                  : 'No GPS yet';
-
-                return (
-                  <div
-                    key={enumerator.id}
-                    className={`flex items-center gap-2 text-xs ${hasGps ? 'text-foreground/80' : 'text-foreground/50'}`}
-                  >
-                    {hasGps ? (
-                      <span
-                        className="w-3 h-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: enumerator.color }}
-                      />
-                    ) : (
-                      <span className="w-3 h-3 rounded-full border border-dashed border-foreground/40 flex-shrink-0 bg-transparent" />
-                    )}
-                    <div className="flex flex-col min-w-0">
-                      <span className="truncate font-medium text-foreground/90">
-                        {enumerator.name}
-                      </span>
-                      <span className={`text-[10px] ${hasGps ? 'text-foreground/60' : 'text-foreground/50 uppercase tracking-wide'}`}>
-                        {summary}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
