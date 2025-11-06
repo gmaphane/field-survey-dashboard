@@ -14,7 +14,8 @@ import {
   ListChecks,
 } from 'lucide-react';
 import Papa from 'papaparse';
-import type { VillageTargets, KoBoSubmission } from '@/types';
+import type { VillageTargets, KoBoSubmission, EnumeratorInfo } from '@/types';
+import { extractEnumeratorInfo, getEnumeratorColor } from '@/lib/enumeratorColors';
 
 const Map = dynamic(() => import('@/components/Map'), { ssr: false });
 
@@ -197,6 +198,8 @@ export default function Dashboard() {
   const [userLocation, setUserLocation] = useState<{lat: number, lon: number} | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [showWhereNext, setShowWhereNext] = useState(false);
+  const [selectedEnumerator, setSelectedEnumerator] = useState<string | null>(null);
+  const [allEnumerators, setAllEnumerators] = useState<Map<string, EnumeratorInfo>>(new Map());
 
   // Auto-load CSV and connect on mount
   useEffect(() => {
@@ -390,6 +393,7 @@ export default function Dashboard() {
   // Process submissions and match to villages
   const processSubmissions = (submissions: KoBoSubmission[]) => {
     const updatedTargets = JSON.parse(JSON.stringify(villageTargets));
+    const enumeratorMap = new Map<string, EnumeratorInfo>();
 
     // Reset counts
     Object.values(updatedTargets).forEach((district: any) => {
@@ -416,6 +420,9 @@ export default function Dashboard() {
         lon = parseFloat((gps as any).longitude || (gps as any).lon || (gps as any).lng);
       }
 
+      // Extract enumerator information
+      const enumeratorInfo = extractEnumeratorInfo(submission);
+
       const district = submission.district ||
                        submission.District ||
                        submission._district ||
@@ -434,13 +441,36 @@ export default function Dashboard() {
         updatedTargets[districtKey][villageKey].actual++;
 
         if (lat && lon && !isNaN(lat) && !isNaN(lon)) {
+          // Track enumerator
+          if (enumeratorInfo) {
+            if (enumeratorMap.has(enumeratorInfo.id)) {
+              const existing = enumeratorMap.get(enumeratorInfo.id)!;
+              existing.submissionCount++;
+            } else {
+              enumeratorMap.set(enumeratorInfo.id, {
+                id: enumeratorInfo.id,
+                name: enumeratorInfo.name,
+                color: '', // Will be set after we have all enumerators
+                submissionCount: 1,
+              });
+            }
+          }
+
           updatedTargets[districtKey][villageKey].households.push({
             lat,
             lon,
             data: submission,
+            enumeratorId: enumeratorInfo?.id,
+            enumeratorName: enumeratorInfo?.name,
           });
         }
       }
+    });
+
+    // Assign colors to enumerators based on sorted IDs
+    const allEnumeratorIds = Array.from(enumeratorMap.keys());
+    enumeratorMap.forEach((info, id) => {
+      info.color = getEnumeratorColor(id, allEnumeratorIds);
     });
 
     // Calculate percentages
@@ -450,11 +480,14 @@ export default function Dashboard() {
       });
     });
 
+    setAllEnumerators(enumeratorMap);
     setVillageTargets(updatedTargets);
   };
 
   // Handle village card click to zoom map
   const handleVillageClick = (district: string, village: string) => {
+    // Clear enumerator filter when changing villages
+    setSelectedEnumerator(null);
     setSelectedVillage({ district, village });
     setMapKey(prev => prev + 1); // Force map re-render to zoom
   };
@@ -476,6 +509,34 @@ export default function Dashboard() {
   const selectedVillageData = selectedVillage
     ? villageTargets[selectedVillage.district]?.[selectedVillage.village] ?? null
     : null;
+
+  // Get enumerators for the selected village
+  const villageEnumerators = useMemo(() => {
+    if (!selectedVillageData) return [];
+
+    const enumeratorMap = new Map<string, EnumeratorInfo>();
+
+    selectedVillageData.households.forEach((household) => {
+      if (household.enumeratorId) {
+        if (enumeratorMap.has(household.enumeratorId)) {
+          const existing = enumeratorMap.get(household.enumeratorId)!;
+          existing.submissionCount++;
+        } else {
+          const enumInfo = allEnumerators.get(household.enumeratorId);
+          if (enumInfo) {
+            enumeratorMap.set(household.enumeratorId, {
+              ...enumInfo,
+              submissionCount: 1,
+            });
+          }
+        }
+      }
+    });
+
+    return Array.from(enumeratorMap.values()).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+  }, [selectedVillageData, allEnumerators]);
 
   const selectedVillageQuality = useMemo(() => {
     if (!selectedVillage || !selectedVillageData) return null;
@@ -853,6 +914,59 @@ export default function Dashboard() {
             </div>
           )}
 
+          {selectedVillage && villageEnumerators.length > 0 && (
+            <div className="rounded-2xl border border-brand-umber/25 bg-white/80 p-4 shadow-[0_18px_30px_-24px_rgba(43,37,57,0.3)] backdrop-blur">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-foreground/60">
+                    Filter by Enumerator
+                  </p>
+                  <p className="text-xs text-foreground/70 mt-1">
+                    {villageEnumerators.length} enumerator{villageEnumerators.length === 1 ? '' : 's'} active in this village
+                  </p>
+                </div>
+                <div className="flex-1 max-w-md">
+                  <select
+                    value={selectedEnumerator || ''}
+                    onChange={(e) => setSelectedEnumerator(e.target.value || null)}
+                    className="w-full px-3 py-2 bg-white border border-brand-umber/30 rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                  >
+                    <option value="">All Enumerators</option>
+                    {villageEnumerators.map((enumerator) => (
+                      <option key={enumerator.id} value={enumerator.id}>
+                        {enumerator.name} ({enumerator.submissionCount} submission{enumerator.submissionCount === 1 ? '' : 's'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {villageEnumerators.map((enumerator) => (
+                  <button
+                    key={enumerator.id}
+                    onClick={() => setSelectedEnumerator(
+                      selectedEnumerator === enumerator.id ? null : enumerator.id
+                    )}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                      selectedEnumerator === enumerator.id
+                        ? 'bg-brand-slate text-white shadow-md'
+                        : 'bg-brand-oatmeal/60 text-foreground/80 hover:bg-brand-oatmeal border border-brand-umber/20'
+                    }`}
+                  >
+                    <span
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: enumerator.color }}
+                    />
+                    {enumerator.name}
+                    <span className="text-[10px] opacity-70">
+                      ({enumerator.submissionCount})
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="bg-white/80 rounded-2xl shadow-[0_18px_30px_-24px_rgba(43,37,57,0.3)] border border-brand-umber/25 flex-1 overflow-hidden backdrop-blur">
             <Map
               key={mapKey}
@@ -861,6 +975,8 @@ export default function Dashboard() {
               showGaps={showGaps}
               showBuildings={showBuildings}
               userLocation={userLocation}
+              selectedEnumerator={selectedEnumerator}
+              allEnumerators={allEnumerators}
             />
           </div>
         </div>

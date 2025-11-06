@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup, Polygon, useMap, Pane } from 'react-leaflet';
-import type { BuildingCentroid, VillageTargets } from '@/types';
+import type { BuildingCentroid, VillageTargets, EnumeratorInfo } from '@/types';
 import L, { type PathOptions } from 'leaflet';
 
 // Helper function to calculate distance between two GPS points (in meters)
@@ -307,6 +307,8 @@ interface MapProps {
   showGaps?: boolean;
   showBuildings?: boolean;
   userLocation?: {lat: number, lon: number} | null;
+  selectedEnumerator?: string | null;
+  allEnumerators?: Map<string, EnumeratorInfo>;
 }
 
 function MapUpdater({ villageTargets, selectedVillage }: { villageTargets: VillageTargets, selectedVillage?: {district: string, village: string} | null }) {
@@ -353,7 +355,7 @@ function MapUpdater({ villageTargets, selectedVillage }: { villageTargets: Villa
   return null;
 }
 
-export default function Map({ villageTargets, selectedVillage, showGaps = true, showBuildings = true, userLocation = null }: MapProps) {
+export default function Map({ villageTargets, selectedVillage, showGaps = true, showBuildings = true, userLocation = null, selectedEnumerator = null, allEnumerators }: MapProps) {
   const getMarkerColor = (percentage: number) => {
     if (percentage >= 100) return '#2B2539'; // slate - completed villages
     if (percentage >= 80) return '#F59E0B'; // bright orange - high progress but incomplete
@@ -478,6 +480,9 @@ export default function Map({ villageTargets, selectedVillage, showGaps = true, 
     percentage: number;
     actual: number;
     expected: number;
+    enumeratorId?: string;
+    enumeratorName?: string;
+    enumeratorColor?: string;
   }> = [];
 
   Object.entries(villageTargets).forEach(([district, villages]) => {
@@ -485,6 +490,21 @@ export default function Map({ villageTargets, selectedVillage, showGaps = true, 
       const filteredHouseholds = removeOutliers(villageData.households);
 
       filteredHouseholds.forEach((household) => {
+        // If we're viewing a specific village with an enumerator filter, only show that enumerator's points
+        if (selectedVillage && selectedEnumerator) {
+          if (selectedVillage.district === district && selectedVillage.village === villageName) {
+            if (household.enumeratorId !== selectedEnumerator) {
+              return; // Skip this household
+            }
+          } else {
+            return; // Skip households from other villages
+          }
+        }
+
+        const enumeratorColor = household.enumeratorId && allEnumerators
+          ? allEnumerators.get(household.enumeratorId)?.color
+          : undefined;
+
         allHouseholds.push({
           lat: household.lat,
           lon: household.lon,
@@ -493,6 +513,9 @@ export default function Map({ villageTargets, selectedVillage, showGaps = true, 
           percentage: villageData.percentage,
           actual: villageData.actual,
           expected: villageData.expected,
+          enumeratorId: household.enumeratorId,
+          enumeratorName: household.enumeratorName,
+          enumeratorColor,
         });
       });
     });
@@ -607,29 +630,45 @@ export default function Map({ villageTargets, selectedVillage, showGaps = true, 
           ))}
 
         {/* Render GPS markers */}
-        {allHouseholds.map((household, index) => (
-          <CircleMarker
-            key={`marker-${index}`}
-            center={[household.lat, household.lon]}
-            radius={8}
-            fillColor={getMarkerColor(household.percentage)}
-            color="#fff"
-            weight={2}
-            opacity={1}
-            fillOpacity={0.8}
-          >
-            <Popup>
-              <div className="text-sm">
-                <div className="font-semibold text-base text-foreground mb-1">
-                  {household.village}, {household.district}
+        {allHouseholds.map((household, index) => {
+          // Use enumerator color if available and we're viewing a selected village
+          const markerColor = selectedVillage && household.enumeratorColor
+            ? household.enumeratorColor
+            : getMarkerColor(household.percentage);
+
+          return (
+            <CircleMarker
+              key={`marker-${index}`}
+              center={[household.lat, household.lon]}
+              radius={8}
+              fillColor={markerColor}
+              color="#fff"
+              weight={2}
+              opacity={1}
+              fillOpacity={0.8}
+            >
+              <Popup>
+                <div className="text-sm">
+                  <div className="font-semibold text-base text-foreground mb-1">
+                    {household.village}, {household.district}
+                  </div>
+                  <div className="text-foreground/70">
+                    Progress: {household.actual}/{household.expected} ({household.percentage}%)
+                  </div>
+                  {household.enumeratorName && (
+                    <div className="text-foreground/70 mt-1 flex items-center gap-2">
+                      <span
+                        className="w-3 h-3 rounded-full inline-block"
+                        style={{ backgroundColor: household.enumeratorColor }}
+                      />
+                      Enumerator: {household.enumeratorName}
+                    </div>
+                  )}
                 </div>
-                <div className="text-foreground/70">
-                  Progress: {household.actual}/{household.expected} ({household.percentage}%)
-                </div>
-              </div>
-            </Popup>
-          </CircleMarker>
-        ))}
+              </Popup>
+            </CircleMarker>
+          );
+        })}
 
         {/* User Location Marker */}
         {userLocation && (
@@ -666,6 +705,36 @@ export default function Map({ villageTargets, selectedVillage, showGaps = true, 
       {selectedVillage && !isLoadingBuildings && buildingError && (
         <div className="pointer-events-none absolute left-4 top-4 rounded bg-white/90 px-3 py-2 text-xs font-medium text-slate-700 shadow">
           Building layer unavailable: {buildingError}
+        </div>
+      )}
+
+      {/* Enumerator Legend - only show when village is selected and enumerators exist */}
+      {selectedVillage && allEnumerators && allEnumerators.size > 0 && (
+        <div className="absolute right-4 top-4 rounded-lg bg-white/95 px-4 py-3 shadow-lg backdrop-blur max-w-xs">
+          <div className="text-xs font-semibold text-foreground/80 mb-2 uppercase tracking-wide">
+            Enumerators
+          </div>
+          <div className="space-y-1.5 max-h-64 overflow-y-auto">
+            {Array.from(allEnumerators.values())
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((enumerator) => (
+                <div
+                  key={enumerator.id}
+                  className="flex items-center gap-2 text-xs"
+                >
+                  <span
+                    className="w-3 h-3 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: enumerator.color }}
+                  />
+                  <span className="text-foreground/90 truncate">
+                    {enumerator.name}
+                  </span>
+                  <span className="text-foreground/60 text-[10px] ml-auto">
+                    ({enumerator.submissionCount})
+                  </span>
+                </div>
+              ))}
+          </div>
         </div>
       )}
     </div>

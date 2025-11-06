@@ -12,6 +12,8 @@ export interface Household {
   lat: number;
   lon: number;
   data: any;
+  enumeratorId?: string;
+  enumeratorName?: string;
 }
 
 export interface BuildingCentroid {
@@ -54,4 +56,11 @@ export interface ComparisonVillage {
   district: string;
   village: string;
   data: VillageTarget;
+}
+
+export interface EnumeratorInfo {
+  id: string;
+  name: string;
+  color: string;
+  submissionCount: number;
 }
