@@ -34,10 +34,16 @@ export function getEnumeratorColor(enumeratorId: string, allEnumeratorIds: strin
 }
 
 export function extractEnumeratorInfo(submission: any): { id: string; name: string } | null {
-  // Try common enumerator field names
-  const enumeratorId =
+  // Try to find the Enumerator Code field from KoBoToolbox
+  // Check both the direct field and grouped field patterns
+  const enumeratorCode =
+    submission['Enumerator Code'] ||
+    submission['enumerator_code'] ||
+    submission.enumerator_code ||
+    submission['grp_general/Enumerator Code'] ||
+    submission['grp_general/enumerator_code'] ||
+    submission.enumeratorCode ||
     submission.enumerator_id ||
-    submission.enumeratorId ||
     submission._enumerator_id ||
     submission.enum_id ||
     submission.enumid ||
@@ -46,8 +52,13 @@ export function extractEnumeratorInfo(submission: any): { id: string; name: stri
     submission._submitted_by ||
     submission.username;
 
+  // Try to find enumerator name (optional)
   const enumeratorName =
+    submission['Enumerator Name'] ||
+    submission['enumerator_name'] ||
     submission.enumerator_name ||
+    submission['grp_general/Enumerator Name'] ||
+    submission['grp_general/enumerator_name'] ||
     submission.enumeratorName ||
     submission._enumerator_name ||
     submission.enum_name ||
@@ -56,12 +67,12 @@ export function extractEnumeratorInfo(submission: any): { id: string; name: stri
     submission.interviewerName ||
     submission._username;
 
-  if (!enumeratorId) {
+  if (!enumeratorCode) {
     return null;
   }
 
   return {
-    id: String(enumeratorId),
-    name: enumeratorName ? String(enumeratorName) : String(enumeratorId),
+    id: String(enumeratorCode),
+    name: enumeratorName ? String(enumeratorName) : String(enumeratorCode),
   };
 }
