@@ -652,6 +652,16 @@ export default function Map({ villageTargets, selectedVillage, showGaps = true, 
             ? household.enumeratorColor
             : getMarkerColor(household.percentage);
 
+          // Debug: Log color for first few markers when enumerator is selected
+          if (selectedEnumerator && index < 3 && typeof window !== 'undefined') {
+            console.log(`Marker ${index}:`, {
+              enumId: household.enumeratorId,
+              markerColor,
+              enumColor: household.enumeratorColor,
+              isSelected: household.isSelectedVillage
+            });
+          }
+
           return (
             <CircleMarker
               key={`marker-${index}`}
