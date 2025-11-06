@@ -410,6 +410,20 @@ function MapUpdater({ villageTargets, selectedVillage, selectedEnumerator }: { v
   return null;
 }
 
+function MapResizeController({ isFullscreen }: { isFullscreen: boolean }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map) return;
+    const handle = window.setTimeout(() => {
+      map.invalidateSize();
+    }, 60);
+    return () => window.clearTimeout(handle);
+  }, [isFullscreen, map]);
+
+  return null;
+}
+
 export default function Map({
   villageTargets,
   selectedVillage,
@@ -645,6 +659,7 @@ export default function Map({
         />
 
         <MapUpdater villageTargets={villageTargets} selectedVillage={selectedVillage} selectedEnumerator={selectedEnumerator} />
+        <MapResizeController isFullscreen={isFullscreen} />
 
         {/* Render spatial gaps as semi-transparent hexagons below other overlays */}
         {showGaps && (
