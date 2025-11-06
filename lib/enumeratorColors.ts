@@ -34,23 +34,42 @@ export function getEnumeratorColor(enumeratorId: string, allEnumeratorIds: strin
 }
 
 export function extractEnumeratorInfo(submission: any): { id: string; name: string } | null {
-  // Try to find the Enumerator Code field from KoBoToolbox
-  // Check both the direct field and grouped field patterns
-  const enumeratorCode =
-    submission['Enumerator Code'] ||
-    submission['enumerator_code'] ||
-    submission.enumerator_code ||
-    submission['grp_general/Enumerator Code'] ||
-    submission['grp_general/enumerator_code'] ||
-    submission.enumeratorCode ||
-    submission.enumerator_id ||
-    submission._enumerator_id ||
-    submission.enum_id ||
-    submission.enumid ||
-    submission.interviewer_id ||
-    submission.interviewerId ||
-    submission._submitted_by ||
-    submission.username;
+  // Helper function to validate enumerator code format (E followed by number)
+  const isValidEnumeratorCode = (value: any): boolean => {
+    if (!value) return false;
+    const str = String(value).trim();
+    return /^E\d+$/i.test(str); // Matches E1, E2, E10, etc. (case insensitive)
+  };
+
+  // List of possible field names to check
+  const possibleFields = [
+    'Enumerator Code',
+    'enumerator_code',
+    'grp_general/Enumerator Code',
+    'grp_general/enumerator_code',
+    'enumeratorCode',
+    'enumerator_id',
+    '_enumerator_id',
+    'enum_id',
+    'enumid',
+    'interviewer_id',
+    'interviewerId',
+  ];
+
+  // Find the first field that contains a valid E-code
+  let enumeratorCode = null;
+  for (const fieldName of possibleFields) {
+    const value = submission[fieldName];
+    if (isValidEnumeratorCode(value)) {
+      enumeratorCode = String(value).trim().toUpperCase(); // Normalize to uppercase
+      break;
+    }
+  }
+
+  // If no valid E-code found, return null
+  if (!enumeratorCode) {
+    return null;
+  }
 
   // Try to find enumerator name (optional)
   const enumeratorName =
@@ -64,15 +83,10 @@ export function extractEnumeratorInfo(submission: any): { id: string; name: stri
     submission.enum_name ||
     submission.enumname ||
     submission.interviewer_name ||
-    submission.interviewerName ||
-    submission._username;
-
-  if (!enumeratorCode) {
-    return null;
-  }
+    submission.interviewerName;
 
   return {
-    id: String(enumeratorCode),
-    name: enumeratorName ? String(enumeratorName) : String(enumeratorCode),
+    id: enumeratorCode,
+    name: enumeratorName ? String(enumeratorName) : enumeratorCode,
   };
 }
