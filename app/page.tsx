@@ -463,6 +463,9 @@ export default function Dashboard() {
       });
     });
 
+    // Track E023 submissions specifically
+    const e023Submissions: any[] = [];
+
     // Process each submission
     submissions.forEach((submission) => {
       const { lat, lon } = extractGpsCoordinates(submission);
@@ -471,6 +474,25 @@ export default function Dashboard() {
       // Extract enumerator information
       const enumeratorInfo = extractEnumeratorInfo(submission);
       if (enumeratorInfo) {
+        // Track E023 specifically
+        if (enumeratorInfo.id === 'E023') {
+          const district = submission.district ||
+                           submission.District ||
+                           submission._district ||
+                           submission['grp_general/landscape'] ||
+                           submission.landscape;
+          const village = submission.village ||
+                          submission.Village ||
+                          submission._village ||
+                          submission['grp_general/village'];
+          e023Submissions.push({
+            district: district,
+            village: village,
+            hasGps: hasValidGps,
+            timestamp: submission._submission_time || submission.end || submission.start,
+          });
+        }
+
         const existing = enumeratorMap.get(enumeratorInfo.id);
         const target = existing ?? {
           id: enumeratorInfo.id,
@@ -534,6 +556,16 @@ export default function Dashboard() {
         village.percentage = Math.min(100, Math.round((village.actual / village.expected) * 100));
       });
     });
+
+    // Log E023 submissions for debugging
+    if (e023Submissions.length > 0) {
+      console.log('=== E023 SUBMISSIONS FOUND ===');
+      console.log('Total E023 submissions:', e023Submissions.length);
+      console.log('Villages with E023:', [...new Set(e023Submissions.map(s => s.village))]);
+      console.log('E023 submission details:', e023Submissions);
+    } else {
+      console.log('=== NO E023 SUBMISSIONS FOUND ===');
+    }
 
     setAllEnumerators(enumeratorMap);
     setVillageTargets(updatedTargets);
