@@ -574,13 +574,28 @@ export default function Dashboard() {
     const selectedVillageKey = selectedVillage.village;
     const enumeratorIdsForColor = Array.from(allEnumerators.keys());
 
+    console.log(`=== Extracting enumerators for ${selectedVillageKey} ===`);
+    let totalSubmissionsForVillage = 0;
+    let submissionsWithEnumerator = 0;
+    let submissionsWithoutEnumerator = 0;
+
     surveyData.forEach((submission) => {
       const districtKey = extractSubmissionValue(submission, DISTRICT_KEYS);
       const villageKey = extractSubmissionValue(submission, VILLAGE_KEYS);
 
       if (districtKey === selectedDistrictKey && villageKey === selectedVillageKey) {
+        totalSubmissionsForVillage++;
         const enumeratorInfo = extractEnumeratorInfo(submission);
-        if (!enumeratorInfo) return;
+        if (!enumeratorInfo) {
+          submissionsWithoutEnumerator++;
+          console.log('No enumerator found for submission:', {
+            district: districtKey,
+            village: villageKey,
+            fields: Object.keys(submission).filter(k => k.toLowerCase().includes('enum')),
+          });
+          return;
+        }
+        submissionsWithEnumerator++;
 
         const base = allEnumerators.get(enumeratorInfo.id);
         const existing = enumeratorMap.get(enumeratorInfo.id);
@@ -608,6 +623,12 @@ export default function Dashboard() {
       }
     });
 
+    console.log(`Village: ${selectedVillageKey}`);
+    console.log(`Total submissions: ${totalSubmissionsForVillage}`);
+    console.log(`With enumerator: ${submissionsWithEnumerator}`);
+    console.log(`Without enumerator: ${submissionsWithoutEnumerator}`);
+    console.log('Enumerators found:', Array.from(enumeratorMap.keys()).sort());
+
     return Array.from(enumeratorMap.values()).sort((a, b) =>
       a.name.localeCompare(b.name)
     );
@@ -617,6 +638,7 @@ export default function Dashboard() {
     if (!selectedEnumerator) return;
     const matching = villageEnumerators.find((enumerator) => enumerator.id === selectedEnumerator);
     if (!matching || matching.gpsSubmissionCount === 0) {
+      console.log('Auto-deselecting enumerator:', selectedEnumerator, 'Reason:', !matching ? 'not found' : 'no GPS');
       setSelectedEnumerator(null);
     }
   }, [selectedEnumerator, villageEnumerators]);
