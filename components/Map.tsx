@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Popup, Polygon, useMap, Pane } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Popup, Polygon, useMap, Pane, Marker } from 'react-leaflet';
 import type { BuildingCentroid, VillageTargets, EnumeratorInfo } from '@/types';
 import L, { type PathOptions } from 'leaflet';
+import { getEnumeratorColor } from '@/lib/enumeratorColors';
 import { Maximize2, Minimize2 } from 'lucide-react';
 
 // Helper function to calculate distance between two GPS points (in meters)
@@ -325,6 +326,7 @@ interface MapProps {
   showGaps?: boolean;
   showBuildings?: boolean;
   userLocation?: {lat: number, lon: number} | null;
+  myEnumeratorCode?: string | null;
   selectedEnumerator?: string | null;
   allEnumerators?: globalThis.Map<string, EnumeratorInfo>;
   isFullscreen?: boolean;
@@ -447,6 +449,7 @@ export default function Map({
   showGaps = true,
   showBuildings = true,
   userLocation = null,
+  myEnumeratorCode = null,
   selectedEnumerator = null,
   allEnumerators,
   isFullscreen = false,
@@ -805,30 +808,61 @@ export default function Map({
           );
         })}
 
-        {/* User Location Marker */}
-        {userLocation && (
-          <CircleMarker
-            center={[userLocation.lat, userLocation.lon]}
-            radius={12}
-            fillColor="#3B82F6"
-            color="#fff"
-            weight={3}
-            opacity={1}
-            fillOpacity={0.7}
-          >
-            <Popup>
-              <div className="text-sm">
-                <div className="font-semibold text-base text-foreground mb-1">
-                  📍 Your Location
+        {/* User Location Marker - Pulsing with Enumerator Code */}
+        {userLocation && myEnumeratorCode && (() => {
+          // Get enumerator color
+          const allEnumIds = allEnumerators ? Array.from(allEnumerators.keys()) : [];
+          const myColor = getEnumeratorColor(myEnumeratorCode, allEnumIds);
+
+          // Create custom pulsing marker icon
+          const pulsingIcon = L.divIcon({
+            html: `
+              <div style="position: relative; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center;">
+                <!-- Outer pulsing ring -->
+                <div class="pulse-ring" style="position: absolute; width: 50px; height: 50px; border-radius: 50%; background-color: ${myColor}; opacity: 0.4;"></div>
+
+                <!-- Inner circle -->
+                <div class="pulse-marker" style="position: relative; width: 32px; height: 32px; border-radius: 50%; background-color: ${myColor}; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 10;">
+                  <div style="color: white; font-size: 10px; font-weight: 700; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">${myEnumeratorCode}</div>
                 </div>
-                <div className="text-foreground/70 text-xs">
-                  Lat: {userLocation.lat.toFixed(5)}<br />
-                  Lon: {userLocation.lon.toFixed(5)}
+
+                <!-- Label below -->
+                <div style="position: absolute; top: 38px; left: 50%; transform: translateX(-50%); background-color: ${myColor}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                  ${myEnumeratorCode}
                 </div>
               </div>
-            </Popup>
-          </CircleMarker>
-        )}
+            `,
+            className: '',
+            iconSize: [50, 60],
+            iconAnchor: [25, 25],
+          });
+
+          return (
+            <Marker
+              position={[userLocation.lat, userLocation.lon]}
+              icon={pulsingIcon}
+            >
+              <Popup>
+                <div className="text-sm">
+                  <div className="font-semibold text-base text-foreground mb-1 flex items-center gap-2">
+                    <span
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: myColor }}
+                    />
+                    {myEnumeratorCode} (You)
+                  </div>
+                  <div className="text-foreground/70 text-xs">
+                    Lat: {userLocation.lat.toFixed(5)}<br />
+                    Lon: {userLocation.lon.toFixed(5)}
+                  </div>
+                  <div className="text-foreground/60 text-[10px] mt-1">
+                    📍 Live tracking active
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })()}
       </MapContainer>
 
       {canToggleFullscreen && onToggleFullscreen ? (

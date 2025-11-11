@@ -257,6 +257,8 @@ export default function Dashboard() {
   const [userLocation, setUserLocation] = useState<{lat: number, lon: number} | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [showWhereNext, setShowWhereNext] = useState(false);
+  const [watchId, setWatchId] = useState<number | null>(null);
+  const [myEnumeratorCode, setMyEnumeratorCode] = useState<string | null>(null);
   const [selectedEnumerator, setSelectedEnumerator] = useState<string | null>(null);
   const [allEnumerators, setAllEnumerators] = useState<globalThis.Map<string, EnumeratorInfo>>(new globalThis.Map());
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -793,32 +795,55 @@ export default function Dashboard() {
     };
   }, [selectedVillage, selectedVillageData, surveyData]);
 
-  // Geolocation handler - Show user's current location on map
+  // Geolocation handler - Show user's current location on map with continuous tracking
   const handleShowMyLocation = () => {
     if (!navigator.geolocation) {
       alert('Geolocation is not supported by your browser');
       return;
     }
 
-    // If already showing location, toggle it off
-    if (userLocation) {
+    // If already showing location, toggle it off and stop tracking
+    if (userLocation && watchId !== null) {
+      navigator.geolocation.clearWatch(watchId);
+      setWatchId(null);
       setUserLocation(null);
       setShowWhereNext(false);
+      setMyEnumeratorCode(null);
       return;
+    }
+
+    // Ask for enumerator code if not set
+    if (!myEnumeratorCode) {
+      const code = prompt('Enter your Enumerator Code (e.g., E001):');
+      if (!code) {
+        return; // User cancelled
+      }
+
+      // Validate E-code format
+      const trimmedCode = code.trim().toUpperCase();
+      if (!/^E\d+$/.test(trimmedCode)) {
+        alert('Invalid enumerator code format. Please use format like E001, E002, etc.');
+        return;
+      }
+
+      setMyEnumeratorCode(trimmedCode);
     }
 
     setIsLocating(true);
     setShowWhereNext(true);
 
-    navigator.geolocation.getCurrentPosition(
+    // Start continuous location tracking
+    const id = navigator.geolocation.watchPosition(
       (position) => {
         const userLat = position.coords.latitude;
         const userLon = position.coords.longitude;
         setUserLocation({ lat: userLat, lon: userLon });
-        setIsLocating(false);
 
-        // Force map to zoom to user's location
-        setMapKey(prev => prev + 1);
+        if (isLocating) {
+          setIsLocating(false);
+          // Force map to zoom to user's location on first position
+          setMapKey(prev => prev + 1);
+        }
       },
       (error) => {
         setIsLocating(false);
@@ -842,10 +867,21 @@ export default function Dashboard() {
       {
         enableHighAccuracy: true,
         timeout: 10000,
-        maximumAge: 60000 // Cache for 1 minute
+        maximumAge: 0 // No caching for continuous tracking
       }
     );
+
+    setWatchId(id);
   };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
+  }, [watchId]);
 
   const mainLayoutClasses = isFullscreen
     ? 'flex flex-col h-screen min-h-0 gap-0'
@@ -1284,8 +1320,9 @@ export default function Dashboard() {
                 showGaps={showGaps}
                 showBuildings={showBuildings}
                 userLocation={userLocation}
-              selectedEnumerator={selectedEnumerator}
-              allEnumerators={allEnumerators}
+                myEnumeratorCode={myEnumeratorCode}
+                selectedEnumerator={selectedEnumerator}
+                allEnumerators={allEnumerators}
               isFullscreen={isFullscreen}
               onToggleFullscreen={() => setIsFullscreen((prev) => !prev)}
               canToggleFullscreen={Boolean(selectedVillage)}
