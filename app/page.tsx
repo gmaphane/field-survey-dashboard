@@ -793,10 +793,17 @@ export default function Dashboard() {
     };
   }, [selectedVillage, selectedVillageData, surveyData]);
 
-  // Geolocation handler
-  const handleWhereNext = () => {
+  // Geolocation handler - Show user's current location on map
+  const handleShowMyLocation = () => {
     if (!navigator.geolocation) {
       alert('Geolocation is not supported by your browser');
+      return;
+    }
+
+    // If already showing location, toggle it off
+    if (userLocation) {
+      setUserLocation(null);
+      setShowWhereNext(false);
       return;
     }
 
@@ -810,53 +817,32 @@ export default function Dashboard() {
         setUserLocation({ lat: userLat, lon: userLon });
         setIsLocating(false);
 
-        // Find the nearest village with incomplete sampling
-        let nearestVillage: { district: string; village: string; distance: number; completion: number } | null = null;
-        let minDistance = Infinity;
-
-        Object.entries(villageTargets).forEach(([district, villages]) => {
-          Object.entries(villages).forEach(([villageName, data]) => {
-            const percentage = data.expected > 0 ? (data.actual / data.expected) * 100 : 0;
-
-            // Only consider villages that aren't complete
-            if (percentage < 100) {
-              data.households.forEach((household) => {
-                const distance = Math.sqrt(
-                  Math.pow(household.lat - userLat, 2) + Math.pow(household.lon - userLon, 2)
-                );
-
-                if (distance < minDistance) {
-                  minDistance = distance;
-                  nearestVillage = { district, village: villageName, distance, completion: Math.round(percentage) };
-                }
-              });
-            }
-          });
-        });
-
-        if (nearestVillage !== null) {
-          const nearest = nearestVillage as { district: string; village: string; distance: number; completion: number };
-          setSelectedVillage({ district: nearest.district, village: nearest.village });
-          setMapKey(prev => prev + 1); // Force map to recenter
-
-          alert(
-            `Nearest incomplete village: ${nearest.village}, ${nearest.district}\n` +
-            `Current completion: ${nearest.completion}%\n` +
-            `Distance: ~${(minDistance * 111).toFixed(1)} km`
-          );
-        } else {
-          alert('All villages are fully sampled! Great work!');
-        }
+        // Force map to zoom to user's location
+        setMapKey(prev => prev + 1);
       },
       (error) => {
         setIsLocating(false);
+        setShowWhereNext(false);
         console.error('Geolocation error:', error);
-        alert(`Unable to get your location: ${error.message}`);
+
+        let errorMessage = 'Unable to get your location';
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = 'Location permission denied. Please enable location access in your browser settings.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = 'Location information is unavailable. Please check your device settings.';
+            break;
+          case error.TIMEOUT:
+            errorMessage = 'Location request timed out. Please try again.';
+            break;
+        }
+        alert(errorMessage);
       },
       {
         enableHighAccuracy: true,
         timeout: 10000,
-        maximumAge: 0
+        maximumAge: 60000 // Cache for 1 minute
       }
     );
   };
@@ -917,12 +903,16 @@ export default function Dashboard() {
               </div>
 
               <button
-                onClick={handleWhereNext}
+                onClick={handleShowMyLocation}
                 disabled={isLocating}
-                className="flex items-center gap-2 px-4 py-2 bg-brand-slate text-white rounded-full shadow-[0_12px_24px_-18px_rgba(43,37,57,0.4)] hover:shadow-[0_16px_32px_-18px_rgba(43,37,57,0.45)] hover:scale-[1.01] transition-all disabled:opacity-50"
+                className={`flex items-center gap-2 px-4 py-2 rounded-full shadow-[0_12px_24px_-18px_rgba(43,37,57,0.4)] hover:shadow-[0_16px_32px_-18px_rgba(43,37,57,0.45)] hover:scale-[1.01] transition-all disabled:opacity-50 ${
+                  userLocation
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-brand-slate text-white'
+                }`}
               >
                 <Navigation className={`w-4 h-4 ${isLocating ? 'animate-pulse' : ''}`} />
-                {isLocating ? 'Locating...' : 'Where Next?'}
+                {isLocating ? 'Locating...' : userLocation ? 'Hide My Location' : 'Show My Location'}
               </button>
 
               <button

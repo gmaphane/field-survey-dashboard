@@ -428,6 +428,19 @@ function MapResizeController({ isFullscreen }: { isFullscreen: boolean }) {
   return null;
 }
 
+function UserLocationZoom({ userLocation }: { userLocation: { lat: number; lon: number } | null }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map || !userLocation) return;
+
+    // Zoom to user's location with a comfortable zoom level
+    map.setView([userLocation.lat, userLocation.lon], 15, { animate: true });
+  }, [userLocation, map]);
+
+  return null;
+}
+
 export default function Map({
   villageTargets,
   selectedVillage,
@@ -673,6 +686,7 @@ export default function Map({
           isFullscreen={isFullscreen}
         />
         <MapResizeController isFullscreen={isFullscreen} />
+        <UserLocationZoom userLocation={userLocation} />
 
         {/* Render spatial gaps as semi-transparent hexagons below other overlays */}
         {showGaps && (
