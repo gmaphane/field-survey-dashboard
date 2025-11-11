@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, CircleMarker, Popup, Polygon, useMap, Pane, Ma
 import type { BuildingCentroid, VillageTargets, EnumeratorInfo } from '@/types';
 import L, { type PathOptions } from 'leaflet';
 import { getEnumeratorColor } from '@/lib/enumeratorColors';
+import type { EnumeratorLocation } from '@/lib/supabase';
 import { Maximize2, Minimize2 } from 'lucide-react';
 
 // Helper function to calculate distance between two GPS points (in meters)
@@ -327,6 +328,7 @@ interface MapProps {
   showBuildings?: boolean;
   userLocation?: {lat: number, lon: number} | null;
   myEnumeratorCode?: string | null;
+  otherEnumeratorLocations?: EnumeratorLocation[];
   selectedEnumerator?: string | null;
   allEnumerators?: globalThis.Map<string, EnumeratorInfo>;
   isFullscreen?: boolean;
@@ -450,6 +452,7 @@ export default function Map({
   showBuildings = true,
   userLocation = null,
   myEnumeratorCode = null,
+  otherEnumeratorLocations = [],
   selectedEnumerator = null,
   allEnumerators,
   isFullscreen = false,
@@ -863,6 +866,68 @@ export default function Map({
             </Marker>
           );
         })()}
+
+        {/* Other Enumerators' Locations - Real-time from Supabase */}
+        {otherEnumeratorLocations.map((location) => {
+          // Get enumerator color
+          const allEnumIds = allEnumerators ? Array.from(allEnumerators.keys()) : [];
+          const enumColor = getEnumeratorColor(location.enumerator_code, allEnumIds);
+
+          // Create custom pulsing marker icon for other enumerators
+          const pulsingIcon = L.divIcon({
+            html: `
+              <div style="position: relative; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center;">
+                <!-- Outer pulsing ring -->
+                <div class="pulse-ring" style="position: absolute; width: 50px; height: 50px; border-radius: 50%; background-color: ${enumColor}; opacity: 0.3;"></div>
+
+                <!-- Inner circle -->
+                <div class="pulse-marker" style="position: relative; width: 28px; height: 28px; border-radius: 50%; background-color: ${enumColor}; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 10;">
+                  <div style="color: white; font-size: 9px; font-weight: 700; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">${location.enumerator_code}</div>
+                </div>
+
+                <!-- Label below -->
+                <div style="position: absolute; top: 35px; left: 50%; transform: translateX(-50%); background-color: ${enumColor}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 9px; font-weight: 600; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                  ${location.enumerator_code}
+                </div>
+              </div>
+            `,
+            className: '',
+            iconSize: [50, 60],
+            iconAnchor: [25, 25],
+          });
+
+          return (
+            <Marker
+              key={location.enumerator_code}
+              position={[location.latitude, location.longitude]}
+              icon={pulsingIcon}
+            >
+              <Popup>
+                <div className="text-sm">
+                  <div className="font-semibold text-base text-foreground mb-1 flex items-center gap-2">
+                    <span
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: enumColor }}
+                    />
+                    {location.enumerator_code}
+                  </div>
+                  <div className="text-foreground/70 text-xs">
+                    Lat: {location.latitude.toFixed(5)}<br />
+                    Lon: {location.longitude.toFixed(5)}
+                  </div>
+                  {location.accuracy && (
+                    <div className="text-foreground/60 text-[10px] mt-1">
+                      Accuracy: ±{Math.round(location.accuracy)}m
+                    </div>
+                  )}
+                  <div className="text-foreground/60 text-[10px] mt-1">
+                    Last updated: {new Date(location.updated_at).toLocaleTimeString()}
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
       </MapContainer>
 
       {canToggleFullscreen && onToggleFullscreen ? (

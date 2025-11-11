@@ -16,6 +16,7 @@ import {
 import Papa from 'papaparse';
 import type { VillageTargets, KoBoSubmission, EnumeratorInfo } from '@/types';
 import { extractEnumeratorInfo, getEnumeratorColor } from '@/lib/enumeratorColors';
+import { LocationService, type EnumeratorLocation } from '@/lib/supabase';
 
 const Map = dynamic(() => import('@/components/Map'), { ssr: false });
 
@@ -262,6 +263,7 @@ export default function Dashboard() {
   const [selectedEnumerator, setSelectedEnumerator] = useState<string | null>(null);
   const [allEnumerators, setAllEnumerators] = useState<globalThis.Map<string, EnumeratorInfo>>(new globalThis.Map());
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [otherEnumeratorLocations, setOtherEnumeratorLocations] = useState<EnumeratorLocation[]>([]);
 
   // Auto-load CSV and connect on mount
   useEffect(() => {
@@ -834,10 +836,26 @@ export default function Dashboard() {
 
     // Start continuous location tracking
     const id = navigator.geolocation.watchPosition(
-      (position) => {
+      async (position) => {
         const userLat = position.coords.latitude;
         const userLon = position.coords.longitude;
+        const accuracy = position.coords.accuracy;
+
         setUserLocation({ lat: userLat, lon: userLon });
+
+        // Push location to Supabase for real-time sharing
+        if (myEnumeratorCode) {
+          try {
+            await LocationService.updateLocation(
+              myEnumeratorCode,
+              userLat,
+              userLon,
+              accuracy
+            );
+          } catch (error) {
+            console.error('Failed to update location in Supabase:', error);
+          }
+        }
 
         if (isLocating) {
           setIsLocating(false);
@@ -880,8 +898,37 @@ export default function Dashboard() {
       if (watchId !== null) {
         navigator.geolocation.clearWatch(watchId);
       }
+      // Remove location from Supabase when unmounting
+      if (myEnumeratorCode) {
+        LocationService.removeLocation(myEnumeratorCode);
+      }
     };
-  }, [watchId]);
+  }, [watchId, myEnumeratorCode]);
+
+  // Subscribe to other enumerators' locations in real-time
+  useEffect(() => {
+    const unsubscribe = LocationService.subscribeToLocations((locations) => {
+      // Filter out own location
+      const others = locations.filter(
+        (loc) => loc.enumerator_code !== myEnumeratorCode
+      );
+      setOtherEnumeratorLocations(others);
+    });
+
+    // Cleanup on unmount
+    return () => {
+      unsubscribe();
+    };
+  }, [myEnumeratorCode]);
+
+  // Periodic cleanup of stale locations (every 2 minutes)
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      LocationService.cleanupStaleLocations();
+    }, 2 * 60 * 1000); // 2 minutes
+
+    return () => clearInterval(intervalId);
+  }, []);
 
   const mainLayoutClasses = isFullscreen
     ? 'flex flex-col h-screen min-h-0 gap-0'
@@ -1321,12 +1368,13 @@ export default function Dashboard() {
                 showBuildings={showBuildings}
                 userLocation={userLocation}
                 myEnumeratorCode={myEnumeratorCode}
+                otherEnumeratorLocations={otherEnumeratorLocations}
                 selectedEnumerator={selectedEnumerator}
                 allEnumerators={allEnumerators}
-              isFullscreen={isFullscreen}
-              onToggleFullscreen={() => setIsFullscreen((prev) => !prev)}
-              canToggleFullscreen={Boolean(selectedVillage)}
-            />
+                isFullscreen={isFullscreen}
+                onToggleFullscreen={() => setIsFullscreen((prev) => !prev)}
+                canToggleFullscreen={Boolean(selectedVillage)}
+              />
             </div>
           </div>
         </div>
