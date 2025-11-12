@@ -797,22 +797,95 @@ export default function Dashboard() {
     };
   }, [selectedVillage, selectedVillageData, surveyData]);
 
-  // Auto-load enumerator code from localStorage on mount
+  // Auto-detect enumerator code from submissions (Uber-like auto-detection)
   useEffect(() => {
+    // First check localStorage
     const storedCode = localStorage.getItem('myEnumeratorCode');
     if (storedCode) {
       setMyEnumeratorCode(storedCode);
+      return;
     }
-  }, []);
 
-  // Geolocation handler - Show user's current location and all enumerator locations
+    // If no stored code, try to detect from survey submissions
+    // Look for the most recent submission from this device
+    if (surveyData.length > 0) {
+      // Get all unique enumerator codes from submissions
+      const enumeratorCounts = new globalThis.Map<string, number>();
+      surveyData.forEach((submission) => {
+        const enumeratorInfo = extractEnumeratorInfo(submission);
+        if (enumeratorInfo) {
+          const count = enumeratorCounts.get(enumeratorInfo.id) || 0;
+          enumeratorCounts.set(enumeratorInfo.id, count + 1);
+        }
+      });
+
+      // If there's only one enumerator in the data, assume it's the user
+      if (enumeratorCounts.size === 1) {
+        const [code] = Array.from(enumeratorCounts.keys());
+        setMyEnumeratorCode(code);
+        localStorage.setItem('myEnumeratorCode', code);
+        console.log(`Auto-detected enumerator code: ${code}`);
+      }
+    }
+  }, [surveyData]);
+
+  // Auto-start location sharing for detected enumerators (Uber-like behavior)
+  useEffect(() => {
+    // Only auto-start if:
+    // 1. Enumerator code is detected/set
+    // 2. Not already tracking
+    // 3. User hasn't explicitly stopped tracking
+    if (myEnumeratorCode && !userLocation && watchId === null && navigator.geolocation) {
+      // Check if user has opted out of auto-tracking
+      const hasOptedOut = localStorage.getItem('locationTrackingOptedOut') === 'true';
+      if (hasOptedOut) return;
+
+      console.log(`Auto-starting location sharing for ${myEnumeratorCode}`);
+
+      // Start tracking automatically
+      const id = navigator.geolocation.watchPosition(
+        async (position) => {
+          const userLat = position.coords.latitude;
+          const userLon = position.coords.longitude;
+          const accuracy = position.coords.accuracy;
+
+          setUserLocation({ lat: userLat, lon: userLon });
+          setShowWhereNext(true);
+
+          // Push location to Supabase for real-time sharing
+          try {
+            await LocationService.updateLocation(
+              myEnumeratorCode,
+              userLat,
+              userLon,
+              accuracy
+            );
+          } catch (error) {
+            console.error('Failed to update location in Supabase:', error);
+          }
+        },
+        (error) => {
+          console.error('Geolocation error:', error);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 30000 // Cache for 30 seconds for better battery life
+        }
+      );
+
+      setWatchId(id);
+    }
+  }, [myEnumeratorCode, userLocation, watchId]);
+
+  // Geolocation handler - For supervisors viewing or enumerators stopping
   const handleShowMyLocation = () => {
     if (!navigator.geolocation) {
       alert('Geolocation is not supported by your browser');
       return;
     }
 
-    // If already showing location, toggle it off and stop tracking
+    // If already tracking (enumerator), toggle it off and stop
     if (userLocation && watchId !== null) {
       navigator.geolocation.clearWatch(watchId);
       setWatchId(null);
@@ -822,49 +895,32 @@ export default function Dashboard() {
       // Remove location from Supabase when stopping tracking
       if (myEnumeratorCode) {
         LocationService.removeLocation(myEnumeratorCode);
+        // Mark that user has opted out
+        localStorage.setItem('locationTrackingOptedOut', 'true');
       }
       return;
     }
 
-    // Try to get stored enumerator code (if user previously entered one)
-    let codeToUse = myEnumeratorCode;
-    if (!codeToUse) {
-      const storedCode = localStorage.getItem('myEnumeratorCode');
-      if (storedCode) {
-        codeToUse = storedCode;
-        setMyEnumeratorCode(storedCode);
-      }
+    // If enumerator code exists but not tracking, restart (user opted back in)
+    if (myEnumeratorCode) {
+      localStorage.removeItem('locationTrackingOptedOut');
+      // The auto-start effect will kick in
+      return;
     }
 
+    // For supervisors without code - start view-only mode
     setIsLocating(true);
     setShowWhereNext(true);
 
-    // Start continuous location tracking
     const id = navigator.geolocation.watchPosition(
       async (position) => {
         const userLat = position.coords.latitude;
         const userLon = position.coords.longitude;
-        const accuracy = position.coords.accuracy;
 
         setUserLocation({ lat: userLat, lon: userLon });
 
-        // Push location to Supabase for real-time sharing (only if code is set)
-        if (codeToUse) {
-          try {
-            await LocationService.updateLocation(
-              codeToUse,
-              userLat,
-              userLon,
-              accuracy
-            );
-          } catch (error) {
-            console.error('Failed to update location in Supabase:', error);
-          }
-        }
-
         if (isLocating) {
           setIsLocating(false);
-          // Force map to zoom to user's location on first position
           setMapKey(prev => prev + 1);
         }
       },
@@ -890,7 +946,7 @@ export default function Dashboard() {
       {
         enableHighAccuracy: true,
         timeout: 10000,
-        maximumAge: 0 // No caching for continuous tracking
+        maximumAge: 0
       }
     );
 
