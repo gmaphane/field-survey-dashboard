@@ -805,7 +805,7 @@ export default function Dashboard() {
     }
   }, []);
 
-  // Geolocation handler - Show user's current location on map with continuous tracking
+  // Geolocation handler - Show user's current location and all enumerator locations
   const handleShowMyLocation = () => {
     if (!navigator.geolocation) {
       alert('Geolocation is not supported by your browser');
@@ -821,27 +821,13 @@ export default function Dashboard() {
       return;
     }
 
-    // Auto-detect or ask for enumerator code only if needed for Supabase tracking
+    // Try to get stored enumerator code (if user previously entered one)
     let codeToUse = myEnumeratorCode;
     if (!codeToUse) {
-      // Try to get from localStorage
       const storedCode = localStorage.getItem('myEnumeratorCode');
       if (storedCode) {
         codeToUse = storedCode;
         setMyEnumeratorCode(storedCode);
-      } else {
-        // Optionally ask for code to enable location sharing
-        const code = prompt('Enter your Enumerator Code to share your location (optional, press Cancel to just view others):');
-        if (code) {
-          const trimmedCode = code.trim().toUpperCase();
-          if (/^E\d+$/.test(trimmedCode)) {
-            codeToUse = trimmedCode;
-            setMyEnumeratorCode(trimmedCode);
-            localStorage.setItem('myEnumeratorCode', trimmedCode);
-          } else {
-            alert('Invalid enumerator code format. Continuing without location sharing.');
-          }
-        }
       }
     }
 
