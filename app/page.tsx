@@ -818,6 +818,11 @@ export default function Dashboard() {
       setWatchId(null);
       setUserLocation(null);
       setShowWhereNext(false);
+
+      // Remove location from Supabase when stopping tracking
+      if (myEnumeratorCode) {
+        LocationService.removeLocation(myEnumeratorCode);
+      }
       return;
     }
 
@@ -892,6 +897,22 @@ export default function Dashboard() {
     setWatchId(id);
   };
 
+  // Handler for setting enumerator code
+  const handleSetEnumeratorCode = () => {
+    const code = prompt('Enter your Enumerator Code (e.g., E001):');
+    if (!code) return;
+
+    const trimmedCode = code.trim().toUpperCase();
+    if (!/^E\d+$/.test(trimmedCode)) {
+      alert('Invalid enumerator code format. Please use format like E001, E002, etc.');
+      return;
+    }
+
+    setMyEnumeratorCode(trimmedCode);
+    localStorage.setItem('myEnumeratorCode', trimmedCode);
+    alert(`Enumerator code set to ${trimmedCode}. Your location will now be shared with the team when tracking.`);
+  };
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -905,18 +926,21 @@ export default function Dashboard() {
     };
   }, [watchId, myEnumeratorCode]);
 
-  // Subscribe to all enumerators' locations in real-time
+  // Subscribe to other enumerators' locations in real-time
   useEffect(() => {
     const unsubscribe = LocationService.subscribeToLocations((locations) => {
-      // Show all locations (including own if sharing)
-      setOtherEnumeratorLocations(locations);
+      // Filter out own location to avoid duplicate markers
+      const others = locations.filter(
+        (loc) => loc.enumerator_code !== myEnumeratorCode
+      );
+      setOtherEnumeratorLocations(others);
     });
 
     // Cleanup on unmount
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [myEnumeratorCode]);
 
   // Periodic cleanup of stale locations (every 2 minutes)
   useEffect(() => {
@@ -981,6 +1005,27 @@ export default function Dashboard() {
                   <span className="text-sm text-foreground/80">Buildings</span>
                 </label>
               </div>
+
+              {/* Enumerator Code Badge/Button */}
+              {myEnumeratorCode ? (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                  <span>🏷️ {myEnumeratorCode}</span>
+                  <button
+                    onClick={handleSetEnumeratorCode}
+                    className="text-green-600 hover:text-green-700 text-xs underline"
+                  >
+                    change
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={handleSetEnumeratorCode}
+                  className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded-full shadow-[0_12px_24px_-18px_rgba(43,37,57,0.4)] hover:shadow-[0_16px_32px_-18px_rgba(43,37,57,0.45)] hover:scale-[1.01] transition-all text-sm font-medium"
+                >
+                  <span>🏷️</span>
+                  Set Code to Share Location
+                </button>
+              )}
 
               <button
                 onClick={handleShowMyLocation}

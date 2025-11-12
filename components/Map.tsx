@@ -811,11 +811,14 @@ export default function Map({
           );
         })}
 
-        {/* User Location Marker - Pulsing with Enumerator Code */}
-        {userLocation && myEnumeratorCode && (() => {
-          // Get enumerator color
+        {/* User Location Marker - Always show if GPS available */}
+        {userLocation && (() => {
+          // Get enumerator color - use default color if no code set
           const allEnumIds = allEnumerators ? Array.from(allEnumerators.keys()) : [];
-          const myColor = getEnumeratorColor(myEnumeratorCode, allEnumIds);
+          const displayCode = myEnumeratorCode || 'You';
+          const myColor = myEnumeratorCode
+            ? getEnumeratorColor(myEnumeratorCode, allEnumIds)
+            : '#6B7280'; // Gray for supervisors without code
 
           // Create custom pulsing marker icon
           const pulsingIcon = L.divIcon({
@@ -826,12 +829,12 @@ export default function Map({
 
                 <!-- Inner circle -->
                 <div class="pulse-marker" style="position: relative; width: 32px; height: 32px; border-radius: 50%; background-color: ${myColor}; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 10;">
-                  <div style="color: white; font-size: 10px; font-weight: 700; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">${myEnumeratorCode}</div>
+                  <div style="color: white; font-size: 10px; font-weight: 700; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">${displayCode === 'You' ? '👤' : displayCode}</div>
                 </div>
 
                 <!-- Label below -->
                 <div style="position: absolute; top: 38px; left: 50%; transform: translateX(-50%); background-color: ${myColor}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                  ${myEnumeratorCode}
+                  ${displayCode}
                 </div>
               </div>
             `,
@@ -852,14 +855,16 @@ export default function Map({
                       className="w-3 h-3 rounded-full"
                       style={{ backgroundColor: myColor }}
                     />
-                    {myEnumeratorCode} (You)
+                    {myEnumeratorCode ? `${myEnumeratorCode} (You)` : 'You (Viewing only)'}
                   </div>
                   <div className="text-foreground/70 text-xs">
                     Lat: {userLocation.lat.toFixed(5)}<br />
                     Lon: {userLocation.lon.toFixed(5)}
                   </div>
                   <div className="text-foreground/60 text-[10px] mt-1">
-                    📍 Live tracking active
+                    {myEnumeratorCode
+                      ? '📍 Live tracking active - sharing with team'
+                      : '📍 Live tracking active - not sharing (set code to share)'}
                   </div>
                 </div>
               </Popup>
