@@ -797,6 +797,14 @@ export default function Dashboard() {
     };
   }, [selectedVillage, selectedVillageData, surveyData]);
 
+  // Auto-load enumerator code from localStorage on mount
+  useEffect(() => {
+    const storedCode = localStorage.getItem('myEnumeratorCode');
+    if (storedCode) {
+      setMyEnumeratorCode(storedCode);
+    }
+  }, []);
+
   // Geolocation handler - Show user's current location on map with continuous tracking
   const handleShowMyLocation = () => {
     if (!navigator.geolocation) {
@@ -810,25 +818,31 @@ export default function Dashboard() {
       setWatchId(null);
       setUserLocation(null);
       setShowWhereNext(false);
-      setMyEnumeratorCode(null);
       return;
     }
 
-    // Ask for enumerator code if not set
-    if (!myEnumeratorCode) {
-      const code = prompt('Enter your Enumerator Code (e.g., E001):');
-      if (!code) {
-        return; // User cancelled
+    // Auto-detect or ask for enumerator code only if needed for Supabase tracking
+    let codeToUse = myEnumeratorCode;
+    if (!codeToUse) {
+      // Try to get from localStorage
+      const storedCode = localStorage.getItem('myEnumeratorCode');
+      if (storedCode) {
+        codeToUse = storedCode;
+        setMyEnumeratorCode(storedCode);
+      } else {
+        // Optionally ask for code to enable location sharing
+        const code = prompt('Enter your Enumerator Code to share your location (optional, press Cancel to just view others):');
+        if (code) {
+          const trimmedCode = code.trim().toUpperCase();
+          if (/^E\d+$/.test(trimmedCode)) {
+            codeToUse = trimmedCode;
+            setMyEnumeratorCode(trimmedCode);
+            localStorage.setItem('myEnumeratorCode', trimmedCode);
+          } else {
+            alert('Invalid enumerator code format. Continuing without location sharing.');
+          }
+        }
       }
-
-      // Validate E-code format
-      const trimmedCode = code.trim().toUpperCase();
-      if (!/^E\d+$/.test(trimmedCode)) {
-        alert('Invalid enumerator code format. Please use format like E001, E002, etc.');
-        return;
-      }
-
-      setMyEnumeratorCode(trimmedCode);
     }
 
     setIsLocating(true);
@@ -843,11 +857,11 @@ export default function Dashboard() {
 
         setUserLocation({ lat: userLat, lon: userLon });
 
-        // Push location to Supabase for real-time sharing
-        if (myEnumeratorCode) {
+        // Push location to Supabase for real-time sharing (only if code is set)
+        if (codeToUse) {
           try {
             await LocationService.updateLocation(
-              myEnumeratorCode,
+              codeToUse,
               userLat,
               userLon,
               accuracy
@@ -905,21 +919,18 @@ export default function Dashboard() {
     };
   }, [watchId, myEnumeratorCode]);
 
-  // Subscribe to other enumerators' locations in real-time
+  // Subscribe to all enumerators' locations in real-time
   useEffect(() => {
     const unsubscribe = LocationService.subscribeToLocations((locations) => {
-      // Filter out own location
-      const others = locations.filter(
-        (loc) => loc.enumerator_code !== myEnumeratorCode
-      );
-      setOtherEnumeratorLocations(others);
+      // Show all locations (including own if sharing)
+      setOtherEnumeratorLocations(locations);
     });
 
     // Cleanup on unmount
     return () => {
       unsubscribe();
     };
-  }, [myEnumeratorCode]);
+  }, []);
 
   // Periodic cleanup of stale locations (every 2 minutes)
   useEffect(() => {
@@ -995,7 +1006,7 @@ export default function Dashboard() {
                 }`}
               >
                 <Navigation className={`w-4 h-4 ${isLocating ? 'animate-pulse' : ''}`} />
-                {isLocating ? 'Locating...' : userLocation ? 'Hide My Location' : 'Show My Location'}
+                {isLocating ? 'Locating...' : userLocation ? 'Stop Tracking' : 'Track Locations'}
               </button>
 
               <button
