@@ -829,18 +829,21 @@ export default function Dashboard() {
     }
   }, [surveyData]);
 
-  // Auto-start location sharing for detected enumerators (Uber-like behavior)
+  // Auto-start location sharing for checked-in enumerators
   useEffect(() => {
-    // Only auto-start if:
-    // 1. Enumerator code is detected/set
-    // 2. Not already tracking
-    // 3. User hasn't explicitly stopped tracking
-    if (myEnumeratorCode && !userLocation && watchId === null && navigator.geolocation) {
-      // Check if user has opted out of auto-tracking
-      const hasOptedOut = localStorage.getItem('locationTrackingOptedOut') === 'true';
-      if (hasOptedOut) return;
+    // Only auto-start if enumerator code exists and not already tracking
+    if (myEnumeratorCode && watchId === null && navigator.geolocation) {
+      // Check if user is checked in for today
+      const checkedInDate = localStorage.getItem('checkedInDate');
+      const today = new Date().toDateString();
+      const isCheckedIn = checkedInDate === today;
 
-      console.log(`Auto-starting location sharing for ${myEnumeratorCode}`);
+      if (!isCheckedIn) {
+        console.log(`Enumerator ${myEnumeratorCode} not checked in for today`);
+        return;
+      }
+
+      console.log(`Auto-starting location sharing for ${myEnumeratorCode} (checked in)`);
 
       // Start tracking automatically
       const id = navigator.geolocation.watchPosition(
@@ -866,17 +869,18 @@ export default function Dashboard() {
         },
         (error) => {
           console.error('Geolocation error:', error);
+          // Don't stop on error - GPS might come back
         },
         {
           enableHighAccuracy: true,
           timeout: 10000,
-          maximumAge: 30000 // Cache for 30 seconds for better battery life
+          maximumAge: 30000 // Cache for 30 seconds for battery
         }
       );
 
       setWatchId(id);
     }
-  }, [myEnumeratorCode, userLocation, watchId]);
+  }, [myEnumeratorCode, watchId]);
 
   // Geolocation handler - For supervisors viewing or enumerators stopping
   const handleShowMyLocation = () => {
@@ -953,7 +957,7 @@ export default function Dashboard() {
     setWatchId(id);
   };
 
-  // Handler for setting enumerator code
+  // Handler for setting enumerator code and checking in
   const handleSetEnumeratorCode = () => {
     const code = prompt('Enter your Enumerator Code (e.g., E001):');
     if (!code) return;
@@ -964,9 +968,42 @@ export default function Dashboard() {
       return;
     }
 
+    // Set code and check in for the day
     setMyEnumeratorCode(trimmedCode);
     localStorage.setItem('myEnumeratorCode', trimmedCode);
-    alert(`Enumerator code set to ${trimmedCode}. Your location will now be shared with the team when tracking.`);
+    localStorage.setItem('checkedInDate', new Date().toDateString());
+
+    alert(`✅ Checked in as ${trimmedCode}! Your location will be shared with supervisors all day. Safe travels!`);
+  };
+
+  // Handler for checking out at end of day
+  const handleCheckOut = () => {
+    if (!confirm('Check out and stop sharing location for today?')) return;
+
+    // Stop tracking
+    if (watchId !== null) {
+      navigator.geolocation.clearWatch(watchId);
+      setWatchId(null);
+    }
+
+    // Remove from Supabase
+    if (myEnumeratorCode) {
+      LocationService.removeLocation(myEnumeratorCode);
+    }
+
+    // Clear check-in
+    localStorage.removeItem('checkedInDate');
+    setUserLocation(null);
+    setShowWhereNext(false);
+
+    alert('✅ Checked out successfully! See you tomorrow.');
+  };
+
+  // Check if enumerator is checked in for today
+  const isCheckedInToday = () => {
+    const checkedInDate = localStorage.getItem('checkedInDate');
+    const today = new Date().toDateString();
+    return checkedInDate === today;
   };
 
   // Cleanup on unmount
@@ -1062,24 +1099,36 @@ export default function Dashboard() {
                 </label>
               </div>
 
-              {/* Enumerator Code Badge/Button */}
+              {/* Enumerator Check-in Status */}
               {myEnumeratorCode ? (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                  <span>🏷️ {myEnumeratorCode}</span>
+                isCheckedInToday() ? (
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500 text-white rounded-full text-sm font-semibold shadow-sm">
+                      <span>✅ {myEnumeratorCode} (Active)</span>
+                    </div>
+                    <button
+                      onClick={handleCheckOut}
+                      className="px-3 py-1.5 text-xs text-red-600 hover:text-red-700 underline"
+                    >
+                      Check Out
+                    </button>
+                  </div>
+                ) : (
                   <button
                     onClick={handleSetEnumeratorCode}
-                    className="text-green-600 hover:text-green-700 text-xs underline"
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-full shadow-[0_12px_24px_-18px_rgba(43,37,57,0.4)] hover:shadow-[0_16px_32px_-18px_rgba(43,37,57,0.45)] hover:scale-[1.01] transition-all text-sm font-medium"
                   >
-                    change
+                    <span>📍</span>
+                    Check In for Today
                   </button>
-                </div>
+                )
               ) : (
                 <button
                   onClick={handleSetEnumeratorCode}
                   className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded-full shadow-[0_12px_24px_-18px_rgba(43,37,57,0.4)] hover:shadow-[0_16px_32px_-18px_rgba(43,37,57,0.45)] hover:scale-[1.01] transition-all text-sm font-medium"
                 >
                   <span>🏷️</span>
-                  Set Code to Share Location
+                  Enter Code & Check In
                 </button>
               )}
 
